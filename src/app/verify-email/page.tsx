@@ -1,36 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import GoogleSignInButton from "@/components/google-signin-button";
 
-type RegisterResponse = {
-  message: string;
-  email: string;
-  expiresAt: string;
-};
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyEmailForm />
+    </Suspense>
+  );
+}
 
-export default function RegisterPage() {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+function VerifyEmailForm() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [token, setToken] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    const tokenFromUrl = searchParams.get("token");
+    if (tokenFromUrl) setToken(tokenFromUrl);
+  }, [searchParams]);
+
+  const handleVerify = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
     setSuccess("");
     setIsLoading(true);
 
     try {
-      const result = await apiFetch<RegisterResponse>("/auth/register/user", {
+      const result = await apiFetch<{ message: string }>("/auth/verify-email", {
         method: "POST",
-        body: JSON.stringify({ email, name }),
+        body: JSON.stringify({ token, password }),
       });
       setSuccess(result.message);
+      setTimeout(() => router.push("/login"), 1200);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Registrasi gagal.";
+      const message = err instanceof Error ? err.message : "Verifikasi gagal.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -47,26 +57,26 @@ export default function RegisterPage() {
         <div className="flex h-full w-full max-w-md flex-col items-center justify-center rounded-[28px] border border-slate-200/80 bg-white/90 shadow-2xl shadow-slate-200/70 backdrop-blur">
           <div className="flex h-full w-full flex-col justify-center gap-4 p-6 sm:p-8">
             <div className="inline-block px-2 py-2.5 sm:px-4">
-              <form className="flex flex-col gap-4 pb-4" onSubmit={handleRegister}>
+              <form className="flex flex-col gap-4 pb-4" onSubmit={handleVerify}>
                 <h1 className="mb-2 text-2xl font-bold text-slate-900">
-                  Daftar disini !
+                  Verifikasi Email
                 </h1>
                 <p className="text-sm text-slate-500">
-                  Supaya kamu bisa segera staycation.
+                  Masukkan token dan buat password akun Anda.
                 </p>
                 <div>
                   <div className="mb-2">
                     <label className="text-sm font-medium text-slate-700">
-                      Nama
+                      Token Verifikasi
                     </label>
                   </div>
                   <div className="flex w-full rounded-lg pt-1">
                     <div className="relative w-full">
                       <input
                         type="text"
-                        placeholder="Masukkan nama lengkap"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
+                        placeholder="Masukkan token"
+                        value={token}
+                        onChange={(event) => setToken(event.target.value)}
                         className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
                         required
                       />
@@ -76,16 +86,16 @@ export default function RegisterPage() {
                 <div>
                   <div className="mb-2">
                     <label className="text-sm font-medium text-slate-700">
-                      Email
+                      Password
                     </label>
                   </div>
                   <div className="flex w-full rounded-lg pt-1">
                     <div className="relative w-full">
                       <input
-                        type="email"
-                        placeholder="Masukkan email anda"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
+                        type="password"
+                        placeholder="Buat password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
                         className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
                         required
                       />
@@ -102,29 +112,15 @@ export default function RegisterPage() {
                     {success}
                   </p>
                 ) : null}
-                {success ? (
-                  <a
-                    href="/verify-email"
-                    className="inline-flex w-full items-center justify-center rounded-full border border-emerald-200 px-5 py-3 text-xs font-semibold text-emerald-700"
-                  >
-                    Lanjut ke verifikasi email
-                  </a>
-                ) : null}
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-                  >
-                    <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
-                      {isLoading ? "Memproses..." : "Daftar"}
-                    </span>
-                  </button>
-                  <p className="text-center text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                    atau masuk dengan
-                  </p>
-                  <GoogleSignInButton accountType="USER" />
-                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                >
+                  <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
+                    {isLoading ? "Memproses..." : "Verifikasi & Simpan Password"}
+                  </span>
+                </button>
               </form>
               <div className="space-y-3 text-center text-sm text-slate-600">
                 <div>
@@ -137,9 +133,6 @@ export default function RegisterPage() {
                   </a>
                 </div>
               </div>
-              <p className="mt-6 text-center text-xs text-slate-500">
-                Dengan mendaftar, Anda menyetujui Kebijakan Privasi BookIn.
-              </p>
             </div>
           </div>
         </div>

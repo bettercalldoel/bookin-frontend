@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { apiFetch } from "@/lib/api";
+import { clearAuthToken, getAuthToken } from "@/lib/auth-client";
 
 const slides = [
   {
@@ -90,6 +93,7 @@ const properties = [
 export default function Home() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -97,6 +101,28 @@ export default function Home() {
     }, 6000);
 
     return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+    let isMounted = true;
+
+    apiFetch<{ name: string }>("/auth/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((data) => {
+        if (isMounted) setUserName(data.name);
+      })
+      .catch(() => {
+        if (isMounted) setUserName(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handlePrev = () => {
@@ -111,6 +137,12 @@ export default function Home() {
 
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false);
+  };
+
+  const handleLogout = () => {
+    clearAuthToken();
+    setUserName(null);
+    window.location.href = "/";
   };
 
   return (
@@ -150,15 +182,33 @@ export default function Home() {
                 <span className="h-0.5 w-5 rounded-full bg-slate-900" />
               </span>
             </button>
-            <a
-              href="/login"
-              className="hidden rounded-full border border-slate-200 px-5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 md:inline-flex"
-            >
-              Masuk
-            </a>
+            {userName ? (
+              <div className="hidden items-center gap-2 md:flex">
+                <span className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+                  Hello, {userName}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <a
+                href="/login"
+                className="hidden rounded-full border border-slate-200 px-5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 md:inline-flex"
+              >
+                Masuk
+              </a>
+            )}
           </div>
         </nav>
       </header>
+      <Suspense fallback={null}>
+        <AuthNotice />
+      </Suspense>
 
       <div
         className={`fixed inset-0 z-20 bg-slate-900/40 transition ${
@@ -200,12 +250,30 @@ export default function Home() {
           ))}
         </nav>
         <div className="mt-6">
-          <a
-            href="/login"
-            className="w-full rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-          >
-            Masuk
-          </a>
+          {userName ? (
+            <div className="flex w-full items-center gap-2">
+              <div className="flex-1 rounded-full bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white">
+                Hello, {userName}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  handleCloseSidebar();
+                  handleLogout();
+                }}
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <a
+              href="/login"
+              className="w-full rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              Masuk
+            </a>
+          )}
         </div>
       </aside>
 
@@ -467,6 +535,26 @@ export default function Home() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function AuthNotice() {
+  const searchParams = useSearchParams();
+  const authReason = searchParams.get("auth");
+
+  if (!authReason) return null;
+
+  return (
+    <div className="relative z-10 mx-auto mt-6 w-full max-w-6xl px-6">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        {authReason === "required" &&
+          "Silakan login terlebih dahulu untuk mengakses halaman tersebut."}
+        {authReason === "unverified" &&
+          "Akun kamu belum terverifikasi. Silakan verifikasi email dulu."}
+        {authReason === "forbidden" &&
+          "Kamu tidak memiliki akses ke halaman tersebut."}
+      </div>
     </div>
   );
 }

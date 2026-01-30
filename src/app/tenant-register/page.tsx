@@ -1,66 +1,160 @@
 "use client";
 
+import { useState } from "react";
+import { apiFetch } from "@/lib/api";
+
+type RegisterResponse = {
+  message: string;
+  email: string;
+  expiresAt: string;
+};
+
 export default function TenantRegisterPage() {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
+
+    try {
+      const result = await apiFetch<RegisterResponse>("/auth/register/tenant", {
+        method: "POST",
+        body: JSON.stringify({ email, name, companyName }),
+      });
+      setSuccess(result.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Registrasi gagal.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
+    <div className="relative min-h-screen bg-slate-50 py-20 text-slate-900">
       <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/70 blur-3xl" />
       <div className="pointer-events-none absolute left-0 top-1/2 h-80 w-80 -translate-y-1/2 rounded-full bg-sky-200/70 blur-3xl" />
       <div className="pointer-events-none absolute inset-0 bg-grid-slate" />
 
-      <main className="relative z-10 flex min-h-screen items-center justify-center px-6 py-16">
-        <div className="w-full max-w-md rounded-[28px] border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-8 shadow-2xl shadow-slate-200/70">
-          <div className="space-y-3 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
-              BookIn
-            </p>
-            <p className="text-sm text-slate-500">
-              Daftarkan properti Anda dan kelola pemesanan lebih mudah.
-            </p>
-          </div>
-
-          <form className="mt-8 space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Email
-              </label>
-              <input
-                type="email"
-                placeholder="Masukkan email tenant"
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
-              />
+      <main className="relative z-10 flex h-full items-center justify-center px-6">
+        <div className="flex h-full w-full max-w-md flex-col items-center justify-center rounded-[28px] border border-slate-200/80 bg-white/90 shadow-2xl shadow-slate-200/70 backdrop-blur">
+          <div className="flex h-full w-full flex-col justify-center gap-4 p-6 sm:p-8">
+            <div className="inline-block px-2 py-2.5 sm:px-4">
+              <form className="flex flex-col gap-4 pb-4" onSubmit={handleRegister}>
+                <h1 className="mb-2 text-2xl font-bold text-slate-900">
+                  Daftar Tenant
+                </h1>
+                <p className="text-sm text-slate-500">
+                  Daftarkan properti Anda dan kelola pemesanan lebih mudah.
+                </p>
+                <div>
+                  <div className="mb-2">
+                    <label className="text-sm font-medium text-slate-700">
+                      Nama
+                    </label>
+                  </div>
+                  <div className="flex w-full rounded-lg pt-1">
+                    <div className="relative w-full">
+                      <input
+                        type="text"
+                        placeholder="Nama penanggung jawab"
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2">
+                    <label className="text-sm font-medium text-slate-700">
+                      Email
+                    </label>
+                  </div>
+                  <div className="flex w-full rounded-lg pt-1">
+                    <div className="relative w-full">
+                      <input
+                        type="email"
+                        placeholder="Masukkan email tenant"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2">
+                    <label className="text-sm font-medium text-slate-700">
+                      Nama Perusahaan
+                    </label>
+                  </div>
+                  <div className="flex w-full rounded-lg pt-1">
+                    <div className="relative w-full">
+                      <input
+                        type="text"
+                        placeholder="Nama perusahaan (opsional)"
+                        value={companyName}
+                        onChange={(event) => setCompanyName(event.target.value)}
+                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {error ? (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
+                    {error}
+                  </p>
+                ) : null}
+                {success ? (
+                  <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
+                    {success}
+                  </p>
+                ) : null}
+                {success ? (
+                  <a
+                    href="/verify-email"
+                    className="inline-flex w-full items-center justify-center rounded-full border border-emerald-200 px-5 py-3 text-xs font-semibold text-emerald-700"
+                  >
+                    Lanjut ke verifikasi email
+                  </a>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                >
+                  <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
+                    {isLoading ? "Memproses..." : "Daftar Tenant"}
+                  </span>
+                </button>
+              </form>
+              <div className="space-y-3 text-center text-sm text-slate-600">
+                <div>
+                  Sudah terdaftar sebagai tenant?{" "}
+                  <a
+                    href="/login"
+                    className="text-sky-600 underline hover:text-sky-700"
+                  >
+                    Masuk
+                  </a>
+                </div>
+              </div>
+              <p className="mt-6 text-center text-xs text-slate-500">
+                Dengan mendaftar, Anda menyetujui Kebijakan Privasi BookIn.
+              </p>
             </div>
-            <button className="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
-              Daftar Tenant
-            </button>
-          </form>
-
-          <div className="my-6 flex items-center gap-4">
-            <span className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-              atau
-            </span>
-            <span className="h-px flex-1 bg-slate-200" />
           </div>
-
-          <div className="space-y-3">
-            <a
-              href="/login"
-              className="flex w-full items-center justify-center rounded-full border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-            >
-              Sudah terdaftar sebagai tenant
-            </a>
-          </div>
-
-          <p className="mt-6 text-center text-xs text-slate-500">
-            Dengan mendaftar, Anda menyetujui Kebijakan Privasi BookIn.
-          </p>
         </div>
-        <a
-          href="/"
-          className="fixed bottom-6 right-6 z-20 rounded-full border border-white/60 bg-white/80 px-5 py-2 text-sm font-semibold text-slate-700 shadow-lg shadow-slate-200/70 backdrop-blur transition hover:border-white/80 hover:text-slate-900"
-        >
-          Home
-        </a>
       </main>
     </div>
   );

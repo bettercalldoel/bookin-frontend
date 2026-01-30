@@ -1,6 +1,6 @@
 "use client";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
       <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/70 blur-3xl" />
@@ -14,67 +14,69 @@ export default function LoginPage() {
               BookIn
             </p>
             <p className="text-sm text-slate-500">
-              Yuk Liburan,kerja mulu nanti tipes !
+              Buat akun baru dan mulai jelajahi staycation.
             </p>
           </div>
 
           <form className="mt-8 space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Login
+                Email
               </label>
               <input
                 type="email"
-                placeholder="Masukkan Email anda"
+                placeholder="Masukkan email anda"
                 className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Password
-              </label>
-              <input
-                type="password"
-                placeholder="Masukkan password anda"
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
-              />
-            </div>
-            <button
-              type="button"
-              className="flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-base">
-                G
-              </span>
-              Lanjutkan dengan Google
+            <button className="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
+              Daftar
             </button>
+            <p className="pt-2 text-center text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+              atau masuk dengan
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-sm">
+                  G
+                </span>
+                Google
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-sm">
+                  f
+                </span>
+                Facebook
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-sm">
+                  X
+                </span>
+                Twitter
+              </button>
+            </div>
           </form>
-
-          <div className="my-6 flex items-center gap-4">
-            <span className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-              atau
-            </span>
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
 
           <div className="space-y-3">
             <a
-              href="/register"
-              className="flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-            >
-              Daftar
-            </a>
-            <a
-              href="/tenant-register"
+              href="/login"
               className="flex w-full items-center justify-center rounded-full border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             >
-              Sewakan Properti
+              Sudah punya akun? Masuk
             </a>
           </div>
 
           <p className="mt-6 text-center text-xs text-slate-500">
-            Dengan masuk, Anda menyetujui Kebijakan Privasi BookIn.
+            Dengan mendaftar, Anda menyetujui Kebijakan Privasi BookIn.
           </p>
         </div>
         <a

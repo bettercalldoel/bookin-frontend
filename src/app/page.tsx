@@ -213,7 +213,7 @@ export default function Home() {
         <section id="hero" className="mx-auto w-full max-w-6xl px-6 pb-16 pt-8">
           <div className="flex flex-col gap-12">
             <div className="relative">
-              <div className="rounded-[32px] border border-slate-200/80 bg-gradient-to-br from-white/95 via-slate-50 to-slate-100/80 p-7 shadow-2xl shadow-slate-200/80 backdrop-blur">
+              <div className="rounded-4xl border border-slate-200/80 bg-linear-to-br from-white/95 via-slate-50 to-slate-100/80 p-7 shadow-2xl shadow-slate-200/80 backdrop-blur">
                 <div className="flex items-center justify-between">
                   <div />
                 </div>
@@ -234,12 +234,12 @@ export default function Home() {
                         style={{ backgroundImage: `url(${slide.image})` }}
                       />
                       <div
-                        className={`absolute inset-0 bg-gradient-to-br ${slide.overlay}`}
+                        className={`absolute inset-0 bg-linear-to-br ${slide.overlay}`}
                       />
                       <div className="relative z-10 flex h-full flex-col justify-between drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]">
                         <div className="space-y-3">
                           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/70">
-                            Highlight
+                        
                           </p>
                           <h2 className="text-2xl font-semibold leading-tight">
                             {slide.title}
@@ -295,7 +295,7 @@ export default function Home() {
                 ].map((item) => (
                   <div
                     key={item.title}
-                    className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 px-5 py-4 shadow-md shadow-slate-200/80"
+                    className="rounded-2xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/80 px-5 py-4 shadow-md shadow-slate-200/80"
                   >
                     <p className="text-xl font-semibold text-slate-900">
                       {item.title}
@@ -309,7 +309,7 @@ export default function Home() {
         </section>
 
         <section id="search" className="mx-auto w-full max-w-6xl px-6 pb-16">
-          <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-slate-100/70 p-8 shadow-2xl shadow-slate-200/70">
+          <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-8 shadow-2xl shadow-slate-200/70">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
@@ -382,10 +382,10 @@ export default function Home() {
             {properties.map((property) => (
               <article
                 key={property.name}
-                className="group rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 p-5 shadow-md shadow-slate-200/70 transition hover:-translate-y-1 hover:shadow-xl"
+                className="group rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/80 p-5 shadow-md shadow-slate-200/70 transition hover:-translate-y-1 hover:shadow-xl"
               >
-                <div className="relative h-40 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 via-white to-slate-200">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.25),_transparent_60%)]" />
+                <div className="relative h-40 overflow-hidden rounded-2xl bg-linear-to-br from-slate-100 via-white to-slate-200">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(20,184,166,0.25),transparent_60%)]" />
                   <div className="absolute bottom-4 left-4 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
                     {property.tag}
                   </div>

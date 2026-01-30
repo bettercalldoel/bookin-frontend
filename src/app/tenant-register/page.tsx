@@ -1,6 +1,6 @@
 "use client";
 
-export default function LoginPage() {
+export default function TenantRegisterPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
       <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/70 blur-3xl" />
@@ -14,39 +14,23 @@ export default function LoginPage() {
               BookIn
             </p>
             <p className="text-sm text-slate-500">
-              Yuk Liburan,kerja mulu nanti tipes !
+              Daftarkan properti Anda dan kelola pemesanan lebih mudah.
             </p>
           </div>
 
           <form className="mt-8 space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Login
+                Email
               </label>
               <input
                 type="email"
-                placeholder="Masukkan Email anda"
+                placeholder="Masukkan email tenant"
                 className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Password
-              </label>
-              <input
-                type="password"
-                placeholder="Masukkan password anda"
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
-              />
-            </div>
-            <button
-              type="button"
-              className="flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-base">
-                G
-              </span>
-              Lanjutkan dengan Google
+            <button className="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
+              Daftar Tenant
             </button>
           </form>
 
@@ -60,21 +44,15 @@ export default function LoginPage() {
 
           <div className="space-y-3">
             <a
-              href="/register"
-              className="flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-            >
-              Daftar
-            </a>
-            <a
-              href="/tenant-register"
+              href="/login"
               className="flex w-full items-center justify-center rounded-full border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             >
-              Sewakan Properti
+              Sudah terdaftar sebagai tenant
             </a>
           </div>
 
           <p className="mt-6 text-center text-xs text-slate-500">
-            Dengan masuk, Anda menyetujui Kebijakan Privasi BookIn.
+            Dengan mendaftar, Anda menyetujui Kebijakan Privasi BookIn.
           </p>
         </div>
         <a

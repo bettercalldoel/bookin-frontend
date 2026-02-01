@@ -1,42 +1,64 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { isValidEmail } from "@/lib/validation";
 
-type ResetPasswordResponse = {
-  message: string;
-  email?: string;
-  expiresAt?: string;
-};
+export default function ConfirmResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConfirmResetForm />
+    </Suspense>
+  );
+}
 
-export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+function ConfirmResetForm() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [token, setToken] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    const tokenFromUrl = searchParams.get("token");
+    if (tokenFromUrl) setToken(tokenFromUrl);
+  }, [searchParams]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
     setSuccess("");
 
-    const trimmedEmail = email.trim();
-    if (!isValidEmail(trimmedEmail)) {
-      setError("Format email tidak valid.");
+    if (!token.trim()) {
+      setError("Token reset wajib diisi.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("Password baru minimal 8 karakter.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Konfirmasi password tidak sama.");
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await apiFetch<ResetPasswordResponse>("/auth/reset-password", {
-        method: "POST",
-        body: JSON.stringify({ email: trimmedEmail }),
-      });
+      const result = await apiFetch<{ message: string }>(
+        "/auth/confirm-reset-password",
+        {
+          method: "POST",
+          body: JSON.stringify({ token: token.trim(), newPassword }),
+        },
+      );
       setSuccess(result.message);
+      setTimeout(() => router.push("/login"), 1200);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Gagal mengirim reset password.";
+        err instanceof Error ? err.message : "Reset password gagal.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -55,32 +77,62 @@ export default function ForgotPasswordPage() {
             <div className="inline-block px-2 py-2.5 sm:px-4">
               <form className="flex flex-col gap-4 pb-4" onSubmit={handleSubmit}>
                 <h1 className="mb-2 text-2xl font-bold text-slate-900">
-                  Reset Password
+                  Konfirmasi Reset Password
                 </h1>
                 <p className="text-sm text-slate-500">
-                  Masukkan email untuk menerima link reset password.
+                  Masukkan token reset dan password baru Anda.
                 </p>
                 <div>
                   <div className="mb-2">
-                    <label
-                      className="text-sm font-medium text-slate-700"
-                      htmlFor="email"
-                    >
-                      Email
+                    <label className="text-sm font-medium text-slate-700">
+                      Token Reset
                     </label>
                   </div>
                   <div className="flex w-full rounded-lg pt-1">
                     <div className="relative w-full">
                       <input
-                        id="email"
-                        type="email"
-                        placeholder="email@example.com"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
+                        type="text"
+                        placeholder="Tempel token reset"
+                        value={token}
+                        onChange={(event) => setToken(event.target.value)}
                         className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
                         required
                       />
                     </div>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <div>
+                    <div className="mb-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Password Baru
+                      </label>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Minimal 8 karakter"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+                      minLength={8}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Konfirmasi Password
+                      </label>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Ulangi password baru"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+                      minLength={8}
+                      required
+                    />
                   </div>
                 </div>
                 {error ? (
@@ -100,14 +152,14 @@ export default function ForgotPasswordPage() {
                     className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                   >
                     <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
-                      {isLoading ? "Mengirim..." : "Kirim link reset"}
+                      {isLoading ? "Memproses..." : "Reset Password"}
                     </span>
                   </button>
                   <a
-                    href="/login"
+                    href="/forgot-password"
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                   >
-                    Kembali ke Login
+                    Kirim ulang link reset
                   </a>
                 </div>
               </form>

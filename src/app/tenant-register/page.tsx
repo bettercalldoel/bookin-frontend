@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
+import GoogleSignInButton from "@/components/google-signin-button";
 
 type RegisterResponse = {
   message: string;
@@ -12,7 +13,6 @@ type RegisterResponse = {
 export default function TenantRegisterPage() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -26,7 +26,7 @@ export default function TenantRegisterPage() {
     try {
       const result = await apiFetch<RegisterResponse>("/auth/register/tenant", {
         method: "POST",
-        body: JSON.stringify({ email, name, companyName }),
+        body: JSON.stringify({ email, name }),
       });
       setSuccess(result.message);
     } catch (err) {
@@ -92,24 +92,6 @@ export default function TenantRegisterPage() {
                     </div>
                   </div>
                 </div>
-                <div>
-                  <div className="mb-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Nama Perusahaan
-                    </label>
-                  </div>
-                  <div className="flex w-full rounded-lg pt-1">
-                    <div className="relative w-full">
-                      <input
-                        type="text"
-                        placeholder="Nama perusahaan (opsional)"
-                        value={companyName}
-                        onChange={(event) => setCompanyName(event.target.value)}
-                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-                      />
-                    </div>
-                  </div>
-                </div>
                 {error ? (
                   <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
                     {error}
@@ -122,7 +104,7 @@ export default function TenantRegisterPage() {
                 ) : null}
                 {success ? (
                   <a
-                    href="/verify-email"
+                    href={`/verify-email?email=${encodeURIComponent(email)}`}
                     className="inline-flex w-full items-center justify-center rounded-full border border-emerald-200 px-5 py-3 text-xs font-semibold text-emerald-700"
                   >
                     Lanjut ke verifikasi email
@@ -137,6 +119,12 @@ export default function TenantRegisterPage() {
                     {isLoading ? "Memproses..." : "Daftar Tenant"}
                   </span>
                 </button>
+                <div className="flex flex-col gap-2">
+                  <p className="text-center text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    atau masuk dengan
+                  </p>
+                  <GoogleSignInButton accountType="TENANT" />
+                </div>
               </form>
               <div className="space-y-3 text-center text-sm text-slate-600">
                 <div>

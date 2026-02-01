@@ -18,11 +18,13 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [showResend, setShowResend] = useState(false);
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
     setInfo("");
+    setShowResend(false);
     setIsLoading(true);
 
     try {
@@ -42,6 +44,7 @@ export default function LoginPage() {
       setError(message);
       if (message.toLowerCase().includes("belum terverifikasi")) {
         setInfo("Silakan verifikasi email terlebih dahulu.");
+        setShowResend(true);
       }
     } finally {
       setIsLoading(false);
@@ -150,6 +153,16 @@ export default function LoginPage() {
                     </span>
                   </button>
                   <GoogleSignInButton accountType="USER" />
+                  {showResend ? (
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={isLoading}
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                    >
+                      {isLoading ? "Mengirim..." : "Kirim ulang email verifikasi"}
+                    </button>
+                  ) : null}
                 </div>
               </form>
               <div className="min-w-[270px] space-y-3 text-center text-sm text-slate-600">

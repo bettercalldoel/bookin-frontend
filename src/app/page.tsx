@@ -1,9 +1,20 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { clearAuthToken, getAuthToken } from "@/lib/auth-client";
+
+const fallbackCarouselImages = [
+  "/images/property-1.jpg",
+  "/images/property-2.jpg",
+  "/images/property-3.jpg",
+];
+
+const carouselImages = (process.env.NEXT_PUBLIC_CAROUSEL_IMAGES ?? "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
 
 const slides = [
   {
@@ -12,7 +23,7 @@ const slides = [
     description:
       "Nikmati pilihan properti kurasi terbaik dengan lokasi premium dan fasilitas lengkap.",
     overlay: "from-black/50 via-black/25 to-black/10",
-    image: "/images/property-1.jpg",
+    image: carouselImages[0] ?? fallbackCarouselImages[0],
     stats: ["Batal gratis", "Konfirmasi instan", "Harga transparan"],
   },
   {
@@ -21,7 +32,7 @@ const slides = [
     description:
       "BookIn menghadirkan opsi akomodasi favorit untuk perjalanan bisnis maupun liburan keluarga.",
     overlay: "from-black/50 via-black/25 to-black/10",
-    image: "/images/property-2.jpg",
+    image: carouselImages[1] ?? fallbackCarouselImages[1],
     stats: ["Sarapan premium", "Wi-Fi cepat", "Layanan antar jemput"],
   },
   {
@@ -30,7 +41,7 @@ const slides = [
     description:
       "Dapatkan rekomendasi destinasi yang relevan dengan preferensi dan jadwal Anda.",
     overlay: "from-black/50 via-black/25 to-black/10",
-    image: "/images/property-3.jpg",
+    image: carouselImages[2] ?? fallbackCarouselImages[2],
     stats: ["Pilihan fleksibel", "Point reward", "Support 24/7"],
   },
 ];
@@ -94,6 +105,10 @@ export default function Home() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userType, setUserType] = useState<"USER" | "TENANT" | null>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const isTenant = userType === "TENANT";
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -104,20 +119,40 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!isUserMenuOpen) return;
+    const handleClick = (event: MouseEvent) => {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [isUserMenuOpen]);
+
+  useEffect(() => {
     const token = getAuthToken();
     if (!token) return;
     let isMounted = true;
 
-    apiFetch<{ name: string }>("/auth/me", {
+    apiFetch<{ name: string; type: "USER" | "TENANT" }>("/auth/me", {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     })
       .then((data) => {
-        if (isMounted) setUserName(data.name);
+        if (isMounted) {
+          setUserName(data.name);
+          setUserType(data.type);
+        }
       })
       .catch(() => {
-        if (isMounted) setUserName(null);
+        if (isMounted) {
+          setUserName(null);
+          setUserType(null);
+        }
       });
 
     return () => {
@@ -142,8 +177,23 @@ export default function Home() {
   const handleLogout = () => {
     clearAuthToken();
     setUserName(null);
+    setUserType(null);
+    setIsUserMenuOpen(false);
     window.location.href = "/";
   };
+
+  const navItems = isTenant
+    ? [
+        { label: "Beranda", href: "#hero" },
+        { label: "Sewakan Properti", href: "/tenant-property" },
+        { label: "Bantuan", href: "#support" },
+      ]
+    : [
+        { label: "Beranda", href: "#hero" },
+        { label: "Cari Properti", href: "#search" },
+        { label: "Properti", href: "#properties" },
+        { label: "Bantuan", href: "#support" },
+      ];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
@@ -157,18 +207,15 @@ export default function Home() {
             <p className="text-lg font-semibold">BookIn</p>
           </div>
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
-            <a className="transition hover:text-slate-900" href="#hero">
-              Beranda
-            </a>
-            <a className="transition hover:text-slate-900" href="#search">
-              Cari Properti
-            </a>
-            <a className="transition hover:text-slate-900" href="#properties">
-              Properti
-            </a>
-            <a className="transition hover:text-slate-900" href="#support">
-              Bantuan
-            </a>
+            {navItems.map((item) => (
+              <a
+                key={item.label}
+                className="transition hover:text-slate-900"
+                href={item.href}
+              >
+                {item.label}
+              </a>
+            ))}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -183,17 +230,34 @@ export default function Home() {
               </span>
             </button>
             {userName ? (
-              <div className="hidden items-center gap-2 md:flex">
+              <div ref={userMenuRef} className="relative hidden items-center gap-2 md:flex">
                 <span className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
                   Hello, {userName}
                 </span>
                 <button
                   type="button"
-                  onClick={handleLogout}
-                  className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                  onClick={() => setIsUserMenuOpen((current) => !current)}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                 >
-                  Logout
+                  Menu
                 </button>
+                {isUserMenuOpen ? (
+                  <div className="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                    <a
+                      href={isTenant ? "/tenant-dashboard" : "/profile"}
+                      className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Kelola akun
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="block w-full px-4 py-3 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <a
@@ -233,12 +297,7 @@ export default function Home() {
           </button>
         </div>
         <nav className="mt-5 flex flex-col gap-2 text-sm font-semibold text-slate-700">
-          {[
-            { label: "Beranda", href: "#hero" },
-            { label: "Cari Properti", href: "#search" },
-            { label: "Properti", href: "#properties" },
-            { label: "Bantuan", href: "#support" },
-          ].map((item) => (
+          {navItems.map((item) => (
             <a
               key={item.label}
               href={item.href}
@@ -376,122 +435,178 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="search" className="mx-auto w-full max-w-6xl px-6 pb-16">
-          <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-8 shadow-2xl shadow-slate-200/70">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                  Form destinasi
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                  Pilih kota tujuan dan tanggal perjalanan Anda
-                </h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  Gunakan kalender untuk memilih tanggal berangkat serta durasi menginap.
-                </p>
-              </div>
-              <button className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
-                Cari properti
-              </button>
-            </div>
-            <form className="mt-8 grid gap-4 md:grid-cols-3">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Kota destinasi
-                </label>
-                <select className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none">
-                  {destinations.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Tanggal berangkat
-                </label>
-                <input
-                  type="date"
-                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Durasi (malam)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  defaultValue={2}
-                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
-                />
-              </div>
-            </form>
-          </div>
-        </section>
-
-        <section id="properties" className="mx-auto w-full max-w-6xl px-6 pb-16">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                Property list
-              </p>
-              <h2 className="mt-2 text-3xl font-semibold text-slate-900">
-                Properti pilihan dengan lokasi strategis
-              </h2>
-            </div>
-            <button className="rounded-full border border-slate-200 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900">
-              Lihat semua properti
-            </button>
-          </div>
-
-          <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {properties.map((property) => (
-              <article
-                key={property.name}
-                className="group rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/80 p-5 shadow-md shadow-slate-200/70 transition hover:-translate-y-1 hover:shadow-xl"
-              >
-                <div className="relative h-40 overflow-hidden rounded-2xl bg-linear-to-br from-slate-100 via-white to-slate-200">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(20,184,166,0.25),transparent_60%)]" />
-                  <div className="absolute bottom-4 left-4 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
-                    {property.tag}
+        {!isTenant ? (
+          <>
+            <section id="search" className="mx-auto w-full max-w-6xl px-6 pb-16">
+              <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-8 shadow-2xl shadow-slate-200/70">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
+                      Form destinasi
+                    </p>
+                    <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                      Pilih kota tujuan dan tanggal perjalanan Anda
+                    </h2>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Gunakan kalender untuk memilih tanggal berangkat serta durasi menginap.
+                    </p>
                   </div>
+                  <button className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
+                    Cari properti
+                  </button>
                 </div>
-                <div className="mt-5 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">
-                        {property.name}
-                      </h3>
-                      <p className="text-sm text-slate-500">
-                        {property.location}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
-                      <span>&#9733;</span>
-                      {property.rating}
-                    </div>
+                <form className="mt-8 grid gap-4 md:grid-cols-3">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Kota destinasi
+                    </label>
+                    <select className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none">
+                      {destinations.map((city) => (
+                        <option key={city} value={city}>
+                          {city}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {property.price}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Tanggal berangkat
+                    </label>
+                    <input
+                      type="date"
+                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Durasi (malam)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      defaultValue={2}
+                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                </form>
+              </div>
+            </section>
+
+            <section id="properties" className="mx-auto w-full max-w-6xl px-6 pb-16">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                    Property list
                   </p>
-                  <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                    <span className="rounded-full border border-slate-200 px-3 py-1">
-                      Sarapan
-                    </span>
-                    <span className="rounded-full border border-slate-200 px-3 py-1">
-                      Wi-Fi
-                    </span>
-                    <span className="rounded-full border border-slate-200 px-3 py-1">
-                      Free cancel
-                    </span>
-                  </div>
+                  <h2 className="mt-2 text-3xl font-semibold text-slate-900">
+                    Properti pilihan dengan lokasi strategis
+                  </h2>
                 </div>
-              </article>
-            ))}
-          </div>
-        </section>
+                <button className="rounded-full border border-slate-200 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900">
+                  Lihat semua properti
+                </button>
+              </div>
+
+              <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {properties.map((property) => (
+                  <article
+                    key={property.name}
+                    className="group rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/80 p-5 shadow-md shadow-slate-200/70 transition hover:-translate-y-1 hover:shadow-xl"
+                  >
+                    <div className="relative h-40 overflow-hidden rounded-2xl bg-linear-to-br from-slate-100 via-white to-slate-200">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(20,184,166,0.25),transparent_60%)]" />
+                      <div className="absolute bottom-4 left-4 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                        {property.tag}
+                      </div>
+                    </div>
+                    <div className="mt-5 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-900">
+                            {property.name}
+                          </h3>
+                          <p className="text-sm text-slate-500">
+                            {property.location}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
+                          <span>&#9733;</span>
+                          {property.rating}
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {property.price}
+                      </p>
+                      <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span className="rounded-full border border-slate-200 px-3 py-1">
+                          Sarapan
+                        </span>
+                        <span className="rounded-full border border-slate-200 px-3 py-1">
+                          Wi-Fi
+                        </span>
+                        <span className="rounded-full border border-slate-200 px-3 py-1">
+                          Free cancel
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : (
+          <section id="lease" className="mx-auto w-full max-w-6xl px-6 pb-16">
+            <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-8 shadow-2xl shadow-slate-200/70">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
+                    Sewakan Properti
+                  </p>
+                  <h2 className="text-2xl font-semibold text-slate-900">
+                    Kelola properti dan jadwal ketersediaan Anda dalam satu
+                    dashboard
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Tambahkan properti baru, lengkapi detail, dan mulai menerima
+                    pemesanan dari pelanggan BookIn.
+                  </p>
+                </div>
+                <a
+                  href="/tenant-property"
+                  className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  Isi Detail Properti
+                </a>
+              </div>
+              <div className="mt-8 grid gap-4 md:grid-cols-3">
+                {[
+                  {
+                    title: "Lengkapi Profil Properti",
+                    desc: "Isi kategori, alamat, serta deskripsi yang menarik.",
+                  },
+                  {
+                    title: "Atur Foto & Media",
+                    desc: "Unggah foto cover dan galeri untuk meningkatkan konversi.",
+                  },
+                  {
+                    title: "Siap Menerima Booking",
+                    desc: "Aktifkan properti agar langsung tampil di aplikasi.",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.title}
+                    className="rounded-2xl border border-slate-200/80 bg-white/80 px-5 py-4 shadow-sm"
+                  >
+                    <p className="text-sm font-semibold text-slate-900">
+                      {item.title}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       <footer id="support" className="relative z-10 border-t border-slate-200 bg-white/80">

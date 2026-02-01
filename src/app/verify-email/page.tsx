@@ -17,19 +17,24 @@ function VerifyEmailForm() {
   const router = useRouter();
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
+  const [resendEmail, setResendEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [resendInfo, setResendInfo] = useState("");
 
   useEffect(() => {
     const tokenFromUrl = searchParams.get("token");
     if (tokenFromUrl) setToken(tokenFromUrl);
+    const emailFromUrl = searchParams.get("email");
+    if (emailFromUrl) setResendEmail(emailFromUrl);
   }, [searchParams]);
 
   const handleVerify = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
     setSuccess("");
+    setResendInfo("");
     setIsLoading(true);
 
     try {
@@ -41,6 +46,34 @@ function VerifyEmailForm() {
       setTimeout(() => router.push("/login"), 1200);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Verifikasi gagal.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!resendEmail) {
+      setError("Masukkan email untuk kirim ulang verifikasi.");
+      return;
+    }
+    setError("");
+    setSuccess("");
+    setResendInfo("");
+    setIsLoading(true);
+
+    try {
+      const result = await apiFetch<{ message: string }>(
+        "/auth/resend-verification",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: resendEmail }),
+        },
+      );
+      setResendInfo(result.message);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Gagal mengirim ulang.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -63,6 +96,9 @@ function VerifyEmailForm() {
                 </h1>
                 <p className="text-sm text-slate-500">
                   Masukkan token dan buat password akun Anda.
+                </p>
+                <p className="text-xs text-slate-400">
+                  Token verifikasi berlaku maksimal 1 jam setelah email dikirim.
                 </p>
                 <div>
                   <div className="mb-2">
@@ -96,6 +132,8 @@ function VerifyEmailForm() {
                         placeholder="Buat password"
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
+                        minLength={8}
+                        autoComplete="new-password"
                         className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
                         required
                       />
@@ -122,6 +160,33 @@ function VerifyEmailForm() {
                   </span>
                 </button>
               </form>
+              <div className="border-t border-slate-100 pt-4 text-sm text-slate-600">
+                <p className="text-xs text-slate-500">
+                  Belum menerima email atau token sudah kedaluwarsa?
+                </p>
+                <div className="mt-3 flex flex-col gap-2">
+                  <input
+                    type="email"
+                    placeholder="Masukkan email untuk kirim ulang"
+                    value={resendEmail}
+                    onChange={(event) => setResendEmail(event.target.value)}
+                    className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/15"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={isLoading}
+                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                  >
+                    {isLoading ? "Mengirim..." : "Kirim ulang email verifikasi"}
+                  </button>
+                  {resendInfo ? (
+                    <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
+                      {resendInfo}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
               <div className="space-y-3 text-center text-sm text-slate-600">
                 <div>
                   Sudah punya akun?{" "}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { isValidEmail } from "@/lib/validation";
 import GoogleSignInButton from "@/components/google-signin-button";
 
 type RegisterResponse = {
@@ -21,12 +22,24 @@ export default function TenantRegisterPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    if (trimmedName.length < 2) {
+      setError("Nama minimal 2 karakter.");
+      return;
+    }
+    if (!isValidEmail(trimmedEmail)) {
+      setError("Format email tidak valid.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const result = await apiFetch<RegisterResponse>("/auth/register/tenant", {
         method: "POST",
-        body: JSON.stringify({ email, name }),
+        body: JSON.stringify({ email: trimmedEmail, name: trimmedName }),
       });
       setSuccess(result.message);
     } catch (err) {

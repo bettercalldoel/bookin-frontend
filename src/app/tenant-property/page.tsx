@@ -42,7 +42,7 @@ export default async function TenantPropertyPage() {
             </div>
           </div>
 
-          <TenantPropertyForm />
+          <TenantPropertyForm showManagement={false} showRoomManagement={false} />
         </div>
       </main>
     </div>

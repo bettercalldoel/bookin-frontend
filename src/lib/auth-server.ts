@@ -8,7 +8,10 @@ export type AuthMe = {
   email: string;
   name: string;
   type: "USER" | "TENANT";
+  avatarUrl?: string | null;
   emailVerifiedAt: string | null;
+  isVerified?: boolean;
+  hasPassword?: boolean;
   userProfile?: { avatarUrl?: string | null } | null;
   tenantProfile?: { companyName?: string | null; avatarUrl?: string | null } | null;
 };

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { isValidEmail } from "@/lib/validation";
 import { setAuthToken } from "@/lib/auth-client";
 import GoogleSignInButton from "@/components/google-signin-button";
 
@@ -25,12 +26,23 @@ export default function LoginPage() {
     setError("");
     setInfo("");
     setShowResend(false);
+
+    const trimmedEmail = email.trim();
+    if (!isValidEmail(trimmedEmail)) {
+      setError("Format email tidak valid.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password minimal 8 karakter.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const result = await apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: trimmedEmail, password }),
       });
 
       setAuthToken(result.accessToken);
@@ -52,8 +64,9 @@ export default function LoginPage() {
   };
 
   const handleResend = async () => {
-    if (!email) {
-      setError("Masukkan email terlebih dahulu.");
+    const trimmedEmail = email.trim();
+    if (!isValidEmail(trimmedEmail)) {
+      setError("Masukkan email yang valid terlebih dahulu.");
       return;
     }
     setError("");
@@ -62,7 +75,7 @@ export default function LoginPage() {
     try {
       const result = await apiFetch<{ message: string }>("/auth/resend-verification", {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: trimmedEmail }),
       });
       setInfo(result.message);
     } catch (err) {

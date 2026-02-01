@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import TenantPropertyForm from "@/components/tenant-property-form";
 
 type DashboardUser = {
   name: string;
@@ -17,7 +18,6 @@ type NavKey =
   | "reminders"
   | "categories"
   | "properties"
-  | "rooms"
   | "rates";
 
 const navItems: { key: NavKey; label: string; helper: string }[] = [
@@ -45,10 +45,9 @@ const navItems: { key: NavKey; label: string; helper: string }[] = [
   },
   {
     key: "properties",
-    label: "Property Management",
-    helper: "Kelola properti",
+    label: "Property & Room",
+    helper: "Kelola properti dan room",
   },
-  { key: "rooms", label: "Room Management", helper: "Kelola kamar" },
   {
     key: "rates",
     label: "Peak Season Rate",
@@ -127,29 +126,6 @@ const mockPayments = [
   },
 ];
 
-const mockProperties = [
-  { id: "PR-01", name: "Serenity Villas", rooms: 3, status: "Aktif" },
-  { id: "PR-02", name: "Skyline Suites", rooms: 4, status: "Aktif" },
-  { id: "PR-03", name: "Garden Stay", rooms: 2, status: "Nonaktif" },
-];
-
-const mockRooms = [
-  {
-    id: "RM-01",
-    property: "Serenity Villas",
-    name: "Deluxe Garden",
-    price: 950000,
-    status: "Available",
-  },
-  {
-    id: "RM-02",
-    property: "Serenity Villas",
-    name: "Pool View",
-    price: 1200000,
-    status: "Booked",
-  },
-];
-
 const mockCategories = [
   { id: "CAT-01", name: "Villa" },
   { id: "CAT-02", name: "Hotel" },
@@ -192,6 +168,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <p className="text-xs text-slate-500">
               {me.tenantProfile?.companyName ?? "Tenant BookIn"}
             </p>
+            <a
+              href="/"
+              className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              Back Home
+            </a>
           </div>
           <nav className="mt-4 flex flex-col gap-2 text-sm font-semibold">
             {navItems.map((item) => (
@@ -602,75 +584,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                  Property Management
+                  Property & Room Management
                 </p>
                 <h2 className="text-2xl font-semibold text-slate-900">
-                  Daftar properti & tipe kamar
+                  Daftar properti dan kelola room
                 </h2>
               </div>
-              <div className="grid gap-4">
-                {mockProperties.map((property) => (
-                  <div
-                    key={property.id}
-                    className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        {property.name}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {property.rooms} tipe kamar • {property.status}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 text-xs">
-                      <button className="rounded-full border border-slate-200 px-3 py-1 text-slate-600">
-                        Detail
-                      </button>
-                      <button className="rounded-full border border-rose-200 px-3 py-1 text-rose-600">
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {active === "rooms" ? (
-            <div className="space-y-6">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                  Room Management
-                </p>
-                <h2 className="text-2xl font-semibold text-slate-900">
-                  Kelola tipe kamar
-                </h2>
-              </div>
-              <div className="grid gap-4">
-                {mockRooms.map((room) => (
-                  <div
-                    key={room.id}
-                    className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        {room.name}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {room.property} • {formatCurrency(room.price)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 text-xs">
-                      <span className="rounded-full border border-slate-200 px-3 py-1 text-slate-600">
-                        {room.status}
-                      </span>
-                      <button className="rounded-full border border-slate-200 px-3 py-1 text-slate-600">
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <TenantPropertyForm showForm={false} showManagement showRoomManagement />
             </div>
           ) : null}
 

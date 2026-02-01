@@ -28,7 +28,46 @@ type CategoryOption = {
   name: string;
 };
 
+type RoomItem = {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+  totalUnits: number;
+  maxGuests: number;
+};
+
+type RoomDraft = {
+  name: string;
+  description: string;
+  price: string;
+  totalUnits: string;
+  maxGuests: string;
+};
+
+type StagedFile = {
+  file: File;
+  previewUrl: string;
+};
+
+type PropertyItem = {
+  id: string;
+  name: string;
+  description: string;
+  address?: string | null;
+  categoryId: string;
+  categoryName?: string | null;
+  cityId: string;
+  cityName?: string | null;
+  province?: string | null;
+  coverUrl?: string | null;
+  galleryUrls: string[];
+  rooms: RoomItem[];
+};
+
 const MAX_GALLERY_IMAGES = 5;
+const MAX_GALLERY_IMAGE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp"];
 const CATEGORY_SUGGESTIONS = [
   "Hotel",
   "Villa",
@@ -38,11 +77,19 @@ const CATEGORY_SUGGESTIONS = [
   "Resort",
 ];
 
-const parseGalleryUrls = (value: string) =>
-  value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+const validateGalleryFile = (file: File) => {
+  if (!file.type.startsWith("image/")) {
+    return `File ${file.name} bukan gambar.`;
+  }
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!ALLOWED_IMAGE_EXTS.includes(ext)) {
+    return `Format file ${file.name} harus ${ALLOWED_IMAGE_EXTS.join(", ")}.`;
+  }
+  if (file.size > MAX_GALLERY_IMAGE_SIZE) {
+    return `Ukuran file ${file.name} melebihi 5MB.`;
+  }
+  return null;
+};
 
 async function fetchSignature() {
   const token = getAuthToken();
@@ -71,6 +118,19 @@ async function fetchCatalog<T>(path: string, search: string) {
   });
 }
 
+async function fetchProperties() {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Unauthorized.");
+  }
+
+  return apiFetch<PropertyItem[]>("/properties", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 async function createCategory(name: string) {
   const token = getAuthToken();
   if (!token) {
@@ -83,6 +143,82 @@ async function createCategory(name: string) {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ name }),
+  });
+}
+
+async function updatePropertyRequest(id: string, payload: Record<string, unknown>) {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Unauthorized.");
+  }
+
+  return apiFetch<{ message: string; id: string }>(`/properties/${id}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function deletePropertyRequest(id: string) {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Unauthorized.");
+  }
+
+  return apiFetch<{ message: string; id: string }>(`/properties/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+async function createRoomRequest(propertyId: string, payload: Record<string, unknown>) {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Unauthorized.");
+  }
+
+  return apiFetch<{ message: string; id: string }>(
+    `/properties/${propertyId}/rooms`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+async function updateRoomRequest(roomId: string, payload: Record<string, unknown>) {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Unauthorized.");
+  }
+
+  return apiFetch<{ message: string; id: string }>(`/properties/rooms/${roomId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function deleteRoomRequest(roomId: string) {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Unauthorized.");
+  }
+
+  return apiFetch<{ message: string; id: string }>(`/properties/rooms/${roomId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 }
 
@@ -110,12 +246,22 @@ async function uploadToCloudinary(file: File, signature: SignatureResponse) {
   return data.secure_url;
 }
 
-export default function TenantPropertyForm() {
+type TenantPropertyFormProps = {
+  showManagement?: boolean;
+  showForm?: boolean;
+  showRoomManagement?: boolean;
+};
+
+export default function TenantPropertyForm({
+  showManagement = true,
+  showForm = true,
+  showRoomManagement = true,
+}: TenantPropertyFormProps) {
   const [propertyName, setPropertyName] = useState("");
   const [propertyDesc, setPropertyDesc] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
-  const [galleryText, setGalleryText] = useState("");
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
   const [categoryQuery, setCategoryQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
@@ -128,10 +274,26 @@ export default function TenantPropertyForm() {
   const [isLoadingCity, setIsLoadingCity] = useState(false);
   const [isUploadingGallery, setIsUploadingGallery] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingProperties, setIsLoadingProperties] = useState(false);
+  const [isSavingRoom, setIsSavingRoom] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [properties, setProperties] = useState<PropertyItem[]>([]);
+  const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
+  const [roomName, setRoomName] = useState("");
+  const [roomDescription, setRoomDescription] = useState("");
+  const [roomPrice, setRoomPrice] = useState("");
+  const [roomUnits, setRoomUnits] = useState("");
+  const [roomGuests, setRoomGuests] = useState("");
+  const [roomDrafts, setRoomDrafts] = useState<RoomDraft[]>([]);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
 
-  const galleryUrls = useMemo(() => parseGalleryUrls(galleryText), [galleryText]);
+  const selectedProperty = useMemo(
+    () => properties.find((item) => item.id === selectedPropertyId) ?? null,
+    [properties, selectedPropertyId],
+  );
 
   useEffect(() => {
     if (!galleryUrls.length) {
@@ -141,6 +303,37 @@ export default function TenantPropertyForm() {
     if (coverUrl && galleryUrls.includes(coverUrl)) return;
     setCoverUrl(galleryUrls[0]);
   }, [galleryUrls, coverUrl]);
+
+  const loadProperties = async () => {
+    setIsLoadingProperties(true);
+    try {
+      const data = await fetchProperties();
+      setProperties(data);
+      if (data.length && !selectedPropertyId) {
+        setSelectedPropertyId(data[0].id);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Gagal memuat properti.";
+      setError(message);
+    } finally {
+      setIsLoadingProperties(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showManagement && !showRoomManagement) return;
+    loadProperties();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showManagement, showRoomManagement]);
+
+  useEffect(() => {
+    if (!selectedPropertyId) return;
+    const exists = properties.some((item) => item.id === selectedPropertyId);
+    if (!exists) {
+      setSelectedPropertyId(properties[0]?.id ?? null);
+    }
+  }, [properties, selectedPropertyId]);
 
   useEffect(() => {
     if (categoryQuery.trim().length < 2) {
@@ -209,35 +402,63 @@ export default function TenantPropertyForm() {
     if (!files || files.length === 0) return;
     setError("");
     setInfo("");
-    const remaining = MAX_GALLERY_IMAGES - galleryUrls.length;
+    const remaining = MAX_GALLERY_IMAGES - galleryUrls.length - stagedFiles.length;
     if (remaining <= 0) {
       setError(`Maksimal ${MAX_GALLERY_IMAGES} foto untuk galeri.`);
       return;
     }
-    setIsUploadingGallery(true);
+    const filesToStage = Array.from(files).slice(0, remaining);
+    const invalid = filesToStage
+      .map((file) => validateGalleryFile(file))
+      .find(Boolean);
+    if (invalid) {
+      setError("Gambar tidak sesuai dengan ketentuan.");
+      return;
+    }
 
+    const staged = filesToStage.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setStagedFiles((prev) => [...prev, ...staged]);
+    if (files.length > remaining) {
+      setInfo(`Maksimal ${MAX_GALLERY_IMAGES} foto untuk galeri.`);
+    }
+  };
+
+  const handleUploadStaged = async () => {
+    if (!stagedFiles.length) return;
+    setError("");
+    setInfo("");
+    setIsUploadingGallery(true);
     try {
       const uploaded: string[] = [];
-      for (const file of Array.from(files).slice(0, remaining)) {
+      for (const staged of stagedFiles) {
         const signature = await fetchSignature();
-        const url = await uploadToCloudinary(file, signature);
+        const url = await uploadToCloudinary(staged.file, signature);
         uploaded.push(url);
       }
-      const nextUrls = [...galleryUrls, ...uploaded];
-      setGalleryText(nextUrls.join(", "));
-      if (files.length > remaining) {
-        setInfo(
-          `Galeri berhasil diunggah (${uploaded.length}). Maksimal ${MAX_GALLERY_IMAGES} foto.`,
-        );
-      } else {
-        setInfo("Galeri berhasil diunggah.");
-      }
+      setGalleryUrls((prev) => [...prev, ...uploaded]);
+      setInfo("Galeri berhasil diunggah.");
+      stagedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      setStagedFiles([]);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload gagal.";
       setError(message);
     } finally {
       setIsUploadingGallery(false);
     }
+  };
+
+  const handleRemoveStaged = (previewUrl: string) => {
+    setStagedFiles((prev) => {
+      const next = prev.filter((item) => item.previewUrl !== previewUrl);
+      const removed = prev.find((item) => item.previewUrl === previewUrl);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return next;
+    });
   };
 
   const handleCreateCategory = async () => {
@@ -267,6 +488,102 @@ export default function TenantPropertyForm() {
     } finally {
       setIsCreatingCategory(false);
     }
+  };
+
+  const resetPropertyForm = () => {
+    setPropertyName("");
+    setPropertyDesc("");
+    setPropertyAddress("");
+    setCoverUrl("");
+    setGalleryUrls([]);
+    setCategoryQuery("");
+    setCategoryId("");
+    setCategoryOptions([]);
+    setCityQuery("");
+    setCityId("");
+    setCityOptions([]);
+    stagedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    setStagedFiles([]);
+    setRoomDrafts([]);
+    setEditingPropertyId(null);
+  };
+
+  const resetRoomForm = () => {
+    setRoomName("");
+    setRoomDescription("");
+    setRoomPrice("");
+    setRoomUnits("");
+    setRoomGuests("");
+    setEditingRoomId(null);
+  };
+
+  const resetRoomDraftForm = () => {
+    setRoomName("");
+    setRoomDescription("");
+    setRoomPrice("");
+    setRoomUnits("");
+    setRoomGuests("");
+  };
+
+  const handleAddRoomDraft = () => {
+    setError("");
+    setInfo("");
+    if (!roomName.trim() || !roomDescription.trim()) {
+      setError("Nama dan deskripsi room wajib diisi.");
+      return;
+    }
+    if (!roomPrice.trim()) {
+      setError("Harga room wajib diisi.");
+      return;
+    }
+    if (!roomUnits.trim() || !roomGuests.trim()) {
+      setError("Total unit dan maksimal tamu wajib diisi.");
+      return;
+    }
+    setRoomDrafts((prev) => [
+      ...prev,
+      {
+        name: roomName.trim(),
+        description: roomDescription.trim(),
+        price: roomPrice.trim(),
+        totalUnits: roomUnits.trim(),
+        maxGuests: roomGuests.trim(),
+      },
+    ]);
+    resetRoomDraftForm();
+  };
+
+  const handleEditProperty = (property: PropertyItem) => {
+    setEditingPropertyId(property.id);
+    setSelectedPropertyId(property.id);
+    setPropertyName(property.name);
+    setPropertyDesc(property.description);
+    setPropertyAddress(property.address ?? "");
+    setCategoryId(property.categoryId);
+    setCategoryQuery(property.categoryName ?? property.categoryId);
+    setCityId(property.cityId);
+    setCityQuery(
+      property.cityName
+        ? property.province
+          ? `${property.cityName}, ${property.province}`
+          : property.cityName
+        : property.cityId,
+    );
+    setGalleryUrls(property.galleryUrls);
+    setCoverUrl(property.coverUrl ?? property.galleryUrls[0] ?? "");
+    stagedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    setStagedFiles([]);
+    setInfo("Mode edit properti aktif.");
+  };
+
+  const handleEditRoom = (room: RoomItem) => {
+    setEditingRoomId(room.id);
+    setRoomName(room.name);
+    setRoomDescription(room.description);
+    setRoomPrice(room.price);
+    setRoomUnits(String(room.totalUnits));
+    setRoomGuests(String(room.maxGuests));
+    setInfo("Mode edit room aktif.");
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -302,6 +619,10 @@ export default function TenantPropertyForm() {
       setError("Pilih kota terlebih dahulu.");
       return;
     }
+    if (stagedFiles.length > 0) {
+      setError("Upload photo terlebih dahulu.");
+      return;
+    }
     if (!galleryUrls.length) {
       setError("Upload minimal 1 foto untuk galeri.");
       return;
@@ -319,25 +640,47 @@ export default function TenantPropertyForm() {
 
     setIsSaving(true);
     try {
-      const result = await apiFetch<{ message: string; id: string }>(
-        "/properties",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: propertyName.trim(),
-            description: propertyDesc.trim(),
-            address: propertyAddress.trim() || undefined,
-            categoryId: resolvedCategoryId,
-            cityId,
-            coverUrl,
-            galleryUrls,
-          }),
-        },
-      );
+      const payload = {
+        name: propertyName.trim(),
+        description: propertyDesc.trim(),
+        address: propertyAddress.trim() || undefined,
+        categoryId: resolvedCategoryId,
+        cityId,
+        coverUrl,
+        galleryUrls,
+      };
+
+      const result = editingPropertyId
+        ? await updatePropertyRequest(editingPropertyId, payload)
+        : await apiFetch<{ message: string; id: string }>("/properties", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+
+      if (!editingPropertyId && roomDrafts.length > 0) {
+        for (const draft of roomDrafts) {
+          await createRoomRequest(result.id, {
+            name: draft.name,
+            description: draft.description,
+            price: draft.price,
+            totalUnits: draft.totalUnits,
+            maxGuests: draft.maxGuests,
+          });
+        }
+      }
+
       setInfo(result.message);
+      if (showManagement || showRoomManagement) {
+        await loadProperties();
+      }
+      if (editingPropertyId) {
+        setEditingPropertyId(null);
+      } else {
+        resetPropertyForm();
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Gagal menyimpan.";
       setError(message);
@@ -346,8 +689,202 @@ export default function TenantPropertyForm() {
     }
   };
 
+  const handleDeleteProperty = async (propertyId: string) => {
+    if (!window.confirm("Hapus properti ini?")) return;
+    setError("");
+    setInfo("");
+    try {
+      const result = await deletePropertyRequest(propertyId);
+      setInfo(result.message);
+      await loadProperties();
+      if (editingPropertyId === propertyId) {
+        resetPropertyForm();
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus.";
+      setError(message);
+    }
+  };
+
+  const handleRoomSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setInfo("");
+
+    if (!selectedPropertyId) {
+      setError("Pilih properti terlebih dahulu untuk menambah room.");
+      return;
+    }
+    if (!roomName.trim() || !roomDescription.trim()) {
+      setError("Nama dan deskripsi room wajib diisi.");
+      return;
+    }
+    if (!roomPrice.trim()) {
+      setError("Harga room wajib diisi.");
+      return;
+    }
+    if (!roomUnits.trim() || !roomGuests.trim()) {
+      setError("Total unit dan maksimal tamu wajib diisi.");
+      return;
+    }
+
+    setIsSavingRoom(true);
+    try {
+      const payload = {
+        name: roomName.trim(),
+        description: roomDescription.trim(),
+        price: roomPrice.trim(),
+        totalUnits: roomUnits.trim(),
+        maxGuests: roomGuests.trim(),
+      };
+      const result = editingRoomId
+        ? await updateRoomRequest(editingRoomId, payload)
+        : await createRoomRequest(selectedPropertyId, payload);
+      setInfo(result.message);
+      await loadProperties();
+      resetRoomForm();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menyimpan room.";
+      setError(message);
+    } finally {
+      setIsSavingRoom(false);
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!window.confirm("Hapus room ini?")) return;
+    setError("");
+    setInfo("");
+    try {
+      const result = await deleteRoomRequest(roomId);
+      setInfo(result.message);
+      await loadProperties();
+      if (editingRoomId === roomId) {
+        resetRoomForm();
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus room.";
+      setError(message);
+    }
+  };
+
   return (
-    <form className="mt-8 space-y-8" onSubmit={handleSubmit}>
+    <div className="mt-8 space-y-10">
+      {showManagement ? (
+        <section className="rounded-3xl border border-slate-200 bg-white/80 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Property Management
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900">
+                Daftar properti yang sudah dibuat
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={loadProperties}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              Refresh
+            </button>
+          </div>
+          {isLoadingProperties ? (
+            <p className="mt-4 text-xs text-slate-500">Memuat properti...</p>
+          ) : null}
+          {!isLoadingProperties && properties.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Belum ada properti. Silakan buat properti baru di form bawah.
+            </p>
+          ) : null}
+          {properties.length ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {properties.map((property) => {
+                const isSelected = selectedPropertyId === property.id;
+                return (
+                  <div
+                    key={property.id}
+                    className={`rounded-2xl border p-4 transition ${
+                      isSelected
+                        ? "border-emerald-300 bg-emerald-50/40"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                          {property.categoryName ?? "Kategori"}
+                        </p>
+                        <h3 className="mt-1 text-base font-semibold text-slate-900">
+                          {property.name}
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          {property.cityName
+                            ? `${property.cityName}${
+                                property.province ? `, ${property.province}` : ""
+                              }`
+                            : `City ID: ${property.cityId}`}
+                        </p>
+                      </div>
+                      {property.coverUrl ? (
+                        <img
+                          src={property.coverUrl}
+                          alt={property.name}
+                          className="h-16 w-20 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-20 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-400">
+                          No image
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {showForm ? (
+                        <button
+                          type="button"
+                          onClick={() => handleEditProperty(property)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPropertyId(property.id)}
+                        className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800"
+                      >
+                        Kelola Room
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProperty(property.id)}
+                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {showForm ? (
+        <form className="space-y-8" onSubmit={handleSubmit}>
+        {editingPropertyId ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+            <span>Mode edit properti aktif.</span>
+            <button
+              type="button"
+              onClick={resetPropertyForm}
+              className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700"
+            >
+              Batalkan
+            </button>
+          </div>
+        ) : null}
       <section className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
           Informasi Utama
@@ -550,23 +1087,61 @@ export default function TenantPropertyForm() {
           <div className="flex flex-col gap-2">
             <input
               type="file"
-              accept="image/*"
+              accept=".jpg,.jpeg,.png,.gif,.webp"
               multiple
               onChange={(event) => handleGalleryUpload(event.target.files)}
-              disabled={galleryUrls.length >= MAX_GALLERY_IMAGES}
+              disabled={
+                galleryUrls.length + stagedFiles.length >= MAX_GALLERY_IMAGES
+              }
               className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800"
             />
             <p className="text-xs text-slate-400">
-              Unggah beberapa foto untuk galeri (maks {MAX_GALLERY_IMAGES}).
+              Unggah beberapa foto (maks {MAX_GALLERY_IMAGES}) dengan ukuran maks 5MB.
             </p>
           </div>
-          <input
-            type="text"
-            placeholder="URL galeri dipisah dengan koma"
-            value={galleryText}
-            onChange={(event) => setGalleryText(event.target.value)}
-            className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-          />
+          {stagedFiles.length ? (
+            <div className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+              <p className="text-xs font-semibold text-slate-700">
+                Staging foto (klik untuk hapus)
+              </p>
+              <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                {stagedFiles.map((item) => (
+                  <button
+                    key={item.previewUrl}
+                    type="button"
+                    onClick={() => handleRemoveStaged(item.previewUrl)}
+                    className="group relative overflow-hidden rounded-2xl border border-slate-200"
+                  >
+                    <img
+                      src={item.previewUrl}
+                      alt={item.file.name}
+                      className="h-24 w-full object-cover transition group-hover:scale-105"
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center bg-slate-900/40 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
+                      Hapus
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">
+                  Pastikan gambar sesuai ketentuan sebelum diupload.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleUploadStaged}
+                  disabled={isUploadingGallery || stagedFiles.length === 0}
+                  className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                >
+                  {isUploadingGallery ? "Mengunggah..." : "Upload photo"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400">
+              Pilih gambar untuk staging, lalu klik Upload photo.
+            </p>
+          )}
           {galleryUrls.length ? (
             <div className="flex flex-wrap gap-2 text-xs text-slate-500">
               {galleryUrls.map((url) => (
@@ -579,7 +1154,7 @@ export default function TenantPropertyForm() {
                     type="button"
                     onClick={() => {
                       const next = galleryUrls.filter((item) => item !== url);
-                      setGalleryText(next.join(", "));
+                      setGalleryUrls(next);
                       if (coverUrl === url) {
                         setCoverUrl(next[0] ?? "");
                       }
@@ -651,6 +1226,128 @@ export default function TenantPropertyForm() {
         </p>
       ) : null}
 
+      {!editingPropertyId ? (
+        <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/80 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Room Draft
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900">
+                Atur room saat membuat properti
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddRoomDraft}
+              className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+            >
+              Tambah Room Draft
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">
+                Room type / name
+              </label>
+              <input
+                type="text"
+                value={roomName}
+                onChange={(event) => setRoomName(event.target.value)}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Harga</label>
+              <input
+                type="number"
+                min={1}
+                value={roomPrice}
+                onChange={(event) => setRoomPrice(event.target.value)}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium text-slate-700">
+                Deskripsi Room
+              </label>
+              <textarea
+                rows={3}
+                value={roomDescription}
+                onChange={(event) => setRoomDescription(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">
+                Total Unit
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={roomUnits}
+                onChange={(event) => setRoomUnits(event.target.value)}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">
+                Maksimal Tamu
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={roomGuests}
+                onChange={(event) => setRoomGuests(event.target.value)}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+              />
+            </div>
+          </div>
+
+          {roomDrafts.length ? (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-slate-600">
+                Room draft yang akan dibuat
+              </p>
+              {roomDrafts.map((draft, index) => (
+                <div
+                  key={`${draft.name}-${index}`}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {draft.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {draft.description}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Rp {draft.price} • {draft.totalUnits} unit •{" "}
+                      {draft.maxGuests} tamu
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRoomDrafts((prev) =>
+                        prev.filter((_, idx) => idx !== index),
+                      )
+                    }
+                    className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">
+              Belum ada room draft ditambahkan.
+            </p>
+          )}
+        </section>
+      ) : null}
+
       <div className="flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-slate-500">
           Field mengikuti struktur `Property` di Prisma schema.
@@ -660,9 +1357,178 @@ export default function TenantPropertyForm() {
           disabled={isSaving || isUploadingGallery}
           className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
         >
-          {isSaving ? "Menyimpan..." : "Simpan Properti"}
+          {isSaving
+            ? "Menyimpan..."
+            : editingPropertyId
+              ? "Update Properti"
+              : "Simpan Properti"}
         </button>
       </div>
-    </form>
+      </form>
+      ) : null}
+
+      {showRoomManagement ? (
+        <section className="rounded-3xl border border-slate-200 bg-white/80 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+              Room Management
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-slate-900">
+              Kelola room untuk properti terpilih
+            </h2>
+          </div>
+          {editingRoomId ? (
+            <button
+              type="button"
+              onClick={resetRoomForm}
+              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700"
+            >
+              Batalkan edit room
+            </button>
+          ) : null}
+        </div>
+
+        {!selectedProperty ? (
+          <p className="mt-4 text-sm text-slate-500">
+            Pilih properti dari daftar di atas untuk mengelola room.
+          </p>
+        ) : (
+          <>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+              Properti aktif:{" "}
+              <span className="font-semibold text-slate-900">
+                {selectedProperty.name}
+              </span>
+            </div>
+            <form className="mt-4 grid gap-4 md:grid-cols-2" onSubmit={handleRoomSubmit}>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Room type / name
+                </label>
+                <input
+                  type="text"
+                  value={roomName}
+                  onChange={(event) => setRoomName(event.target.value)}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Harga
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={roomPrice}
+                  onChange={(event) => setRoomPrice(event.target.value)}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Deskripsi Room
+                </label>
+                <textarea
+                  rows={3}
+                  value={roomDescription}
+                  onChange={(event) => setRoomDescription(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Total Unit
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={roomUnits}
+                  onChange={(event) => setRoomUnits(event.target.value)}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Maksimal Tamu
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={roomGuests}
+                  onChange={(event) => setRoomGuests(event.target.value)}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                />
+              </div>
+              <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">
+                  Field mengikuti struktur `RoomType` di Prisma schema.
+                </p>
+                <button
+                  type="submit"
+                  disabled={isSavingRoom}
+                  className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                >
+                  {isSavingRoom
+                    ? "Menyimpan..."
+                    : editingRoomId
+                      ? "Update Room"
+                      : "Tambah Room"}
+                </button>
+              </div>
+            </form>
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-slate-700">
+                Daftar room
+              </h3>
+              {selectedProperty.rooms.length ? (
+                <div className="mt-3 space-y-3">
+                  {selectedProperty.rooms.map((room) => (
+                    <div
+                      key={room.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {room.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {room.description}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Rp {room.price} • {room.totalUnits} unit •{" "}
+                          {room.maxGuests} tamu
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditRoom(room)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRoom(room.id)}
+                          className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-500">
+                  Belum ada room untuk properti ini.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+      ) : null}
+    </div>
   );
 }

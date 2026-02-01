@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { isValidEmail } from "@/lib/validation";
 
 export default function VerifyEmailPage() {
   return (
@@ -16,7 +17,7 @@ function VerifyEmailForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [token, setToken] = useState("");
-  const [password, setPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [resendEmail, setResendEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -35,12 +36,26 @@ function VerifyEmailForm() {
     setError("");
     setSuccess("");
     setResendInfo("");
+    if (!token.trim()) {
+      setError("Token verifikasi wajib diisi.");
+      return;
+    }
+    const trimmedCurrentPassword = currentPassword.trim();
+
+    if (trimmedCurrentPassword && trimmedCurrentPassword.length < 8) {
+      setError("Password lama minimal 8 karakter.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const result = await apiFetch<{ message: string }>("/auth/verify-email", {
         method: "POST",
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({
+          token: token.trim(),
+          currentPassword: trimmedCurrentPassword || undefined,
+        }),
       });
       setSuccess(result.message);
       setTimeout(() => router.push("/login"), 1200);
@@ -53,8 +68,9 @@ function VerifyEmailForm() {
   };
 
   const handleResend = async () => {
-    if (!resendEmail) {
-      setError("Masukkan email untuk kirim ulang verifikasi.");
+    const trimmedEmail = resendEmail.trim();
+    if (!isValidEmail(trimmedEmail)) {
+      setError("Masukkan email yang valid untuk kirim ulang verifikasi.");
       return;
     }
     setError("");
@@ -67,7 +83,7 @@ function VerifyEmailForm() {
         "/auth/resend-verification",
         {
           method: "POST",
-          body: JSON.stringify({ email: resendEmail }),
+          body: JSON.stringify({ email: trimmedEmail }),
         },
       );
       setResendInfo(result.message);
@@ -122,23 +138,24 @@ function VerifyEmailForm() {
                 <div>
                   <div className="mb-2">
                     <label className="text-sm font-medium text-slate-700">
-                      Password
+                      Password Lama
                     </label>
                   </div>
                   <div className="flex w-full rounded-lg pt-1">
                     <div className="relative w-full">
                       <input
                         type="password"
-                        placeholder="Buat password"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        minLength={8}
-                        autoComplete="new-password"
+                        placeholder="Masukkan password lama (untuk ganti email)"
+                        value={currentPassword}
+                        onChange={(event) => setCurrentPassword(event.target.value)}
+                        autoComplete="current-password"
                         className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-                        required
                       />
                     </div>
                   </div>
+                  <p className="mt-2 text-xs text-slate-400">
+                    Wajib diisi saat verifikasi ulang setelah ganti email.
+                  </p>
                 </div>
                 {error ? (
                   <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">

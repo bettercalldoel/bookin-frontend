@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { clearAuthToken, getAuthToken } from "@/lib/auth-client";
@@ -108,6 +109,8 @@ export default function Home() {
   const [userType, setUserType] = useState<"USER" | "TENANT" | null>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const userMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   const isTenant = userType === "TENANT";
 
   useEffect(() => {
@@ -120,7 +123,20 @@ export default function Home() {
 
   useEffect(() => {
     if (!isUserMenuOpen) return;
+    const updatePosition = () => {
+      if (!userMenuButtonRef.current) return;
+      const rect = userMenuButtonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    };
+    updatePosition();
     const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-user-menu]")) {
+        return;
+      }
       if (
         userMenuRef.current &&
         !userMenuRef.current.contains(event.target as Node)
@@ -129,7 +145,13 @@ export default function Home() {
       }
     };
     document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      document.removeEventListener("click", handleClick);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
   }, [isUserMenuOpen]);
 
   useEffect(() => {
@@ -196,12 +218,12 @@ export default function Home() {
       ];
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
+    <div className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900">
       <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/70 blur-3xl" />
       <div className="pointer-events-none absolute left-0 top-1/2 h-80 w-80 -translate-y-1/2 rounded-full bg-sky-200/70 blur-3xl" />
       <div className="pointer-events-none absolute inset-0 bg-grid-slate" />
 
-      <header className="relative z-10">
+      <header className="fixed inset-x-0 top-0 z-[200]">
         <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6 md:rounded-full md:border md:border-white/60 md:bg-white/70 md:shadow-lg md:shadow-slate-200/70 md:backdrop-blur">
           <div>
             <p className="text-lg font-semibold">BookIn</p>
@@ -230,34 +252,49 @@ export default function Home() {
               </span>
             </button>
             {userName ? (
-              <div ref={userMenuRef} className="relative hidden items-center gap-2 md:flex">
+              <div
+                ref={userMenuRef}
+                data-user-menu
+                className="relative hidden items-center gap-2 md:flex"
+              >
                 <span className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
                   Hello, {userName}
                 </span>
                 <button
                   type="button"
+                  ref={userMenuButtonRef}
                   onClick={() => setIsUserMenuOpen((current) => !current)}
                   className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                 >
                   Menu
                 </button>
-                {isUserMenuOpen ? (
-                  <div className="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-                    <a
-                      href={isTenant ? "/tenant-dashboard" : "/profile"}
-                      className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Kelola akun
-                    </a>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="block w-full px-4 py-3 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
-                    >
-                      Sign out
-                    </button>
-                  </div>
-                ) : null}
+                {isUserMenuOpen && menuPosition
+                  ? createPortal(
+                      <div
+                        data-user-menu
+                        className="fixed z-[1000] w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                        style={{
+                          top: menuPosition.top,
+                          right: menuPosition.right,
+                        }}
+                      >
+                        <a
+                          href={isTenant ? "/tenant-dashboard" : "/profile"}
+                          className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Kelola akun
+                        </a>
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="block w-full px-4 py-3 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                        >
+                          Sign out
+                        </button>
+                      </div>,
+                      document.body,
+                    )
+                  : null}
               </div>
             ) : (
               <a
@@ -336,7 +373,7 @@ export default function Home() {
         </div>
       </aside>
 
-      <main className="relative z-10">
+      <main className="relative z-0 pt-24 md:pt-28">
         <section id="hero" className="mx-auto w-full max-w-6xl px-6 pb-16 pt-8">
           <div className="flex flex-col gap-12">
             <div className="relative">

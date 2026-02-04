@@ -68,14 +68,6 @@ type PropertyItem = {
 const MAX_GALLERY_IMAGES = 5;
 const MAX_GALLERY_IMAGE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp"];
-const CATEGORY_SUGGESTIONS = [
-  "Hotel",
-  "Villa",
-  "Apartemen",
-  "Guest House",
-  "Homestay",
-  "Resort",
-];
 
 const validateGalleryFile = (file: File) => {
   if (!file.type.startsWith("image/")) {
@@ -89,6 +81,19 @@ const validateGalleryFile = (file: File) => {
     return `Ukuran file ${file.name} melebihi 5MB.`;
   }
   return null;
+};
+
+const sanitizeNumberInput = (value: string) => value.replace(/[^\d]/g, "");
+
+const formatIDR = (value: string | number) => {
+  const numericValue =
+    typeof value === "number" ? value : Number(value.replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(numericValue)) return "Rp -";
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(numericValue);
 };
 
 async function fetchSignature() {
@@ -281,7 +286,10 @@ export default function TenantPropertyForm({
   const [categoryId, setCategoryId] = useState("");
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
-  const [categoryMessage, setCategoryMessage] = useState("");
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
+  const [lastCategorySearch, setLastCategorySearch] = useState<string | null>(
+    null,
+  );
   const [cityQuery, setCityQuery] = useState("");
   const [cityId, setCityId] = useState("");
   const [cityOptions, setCityOptions] = useState<CityOption[]>([]);
@@ -313,6 +321,35 @@ export default function TenantPropertyForm({
     () => properties.find((item) => item.id === selectedPropertyId) ?? null,
     [properties, selectedPropertyId],
   );
+  const normalizedCategoryQuery = categoryQuery.trim();
+  const hasCategoryQuery = normalizedCategoryQuery.length >= 2;
+  const categoryExactMatch = categoryOptions.some(
+    (option) =>
+      option.name.toLowerCase() === normalizedCategoryQuery.toLowerCase(),
+  );
+  const showCategoryDropdown =
+    isCategoryMenuOpen && (hasCategoryQuery || categoryOptions.length > 0);
+  const showCreateCategoryOption =
+    hasCategoryQuery && !categoryExactMatch && normalizedCategoryQuery.length >= 2;
+
+  const loadCategoryOptions = async (search: string) => {
+    const trimmedSearch = search.trim();
+    setIsLoadingCategory(true);
+    try {
+      const result = await fetchCatalog<CategoryOption[]>(
+        "categories",
+        trimmedSearch,
+      );
+      setCategoryOptions(result);
+      setLastCategorySearch(trimmedSearch);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Gagal memuat kategori.";
+      setError(message);
+    } finally {
+      setIsLoadingCategory(false);
+    }
+  };
 
   useEffect(() => {
     if (!galleryUrls.length) {
@@ -355,31 +392,37 @@ export default function TenantPropertyForm({
   }, [properties, selectedPropertyId]);
 
   useEffect(() => {
-    if (categoryQuery.trim().length < 2) {
+    const trimmedQuery = categoryQuery.trim();
+    if (!trimmedQuery) {
+      if (
+        isCategoryMenuOpen &&
+        !isLoadingCategory &&
+        lastCategorySearch !== ""
+      ) {
+        void loadCategoryOptions("");
+      }
+      if (!isCategoryMenuOpen) {
+        setCategoryOptions([]);
+      }
+      return;
+    }
+    if (trimmedQuery.length < 2) {
       setCategoryOptions([]);
       setIsLoadingCategory(false);
       return;
     }
 
     const timer = window.setTimeout(async () => {
-      setIsLoadingCategory(true);
-      try {
-        const result = await fetchCatalog<CategoryOption[]>(
-          "categories",
-          categoryQuery.trim(),
-        );
-        setCategoryOptions(result);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Gagal memuat kategori.";
-        setError(message);
-      } finally {
-        setIsLoadingCategory(false);
-      }
+      await loadCategoryOptions(trimmedQuery);
     }, 400);
 
     return () => window.clearTimeout(timer);
-  }, [categoryQuery]);
+  }, [
+    categoryQuery,
+    isCategoryMenuOpen,
+    isLoadingCategory,
+    lastCategorySearch,
+  ]);
 
   useEffect(() => {
     if (!categoryOptions.length || !categoryQuery.trim()) return;
@@ -492,21 +535,17 @@ export default function TenantPropertyForm({
     if (isCreatingCategory) return;
     setError("");
     setInfo("");
-    setCategoryMessage("");
     setIsCreatingCategory(true);
     try {
       const result = await createCategory(name);
       setCategoryId(result.id);
       setCategoryQuery(result.name);
       setCategoryOptions([]);
-      const message = `Kategori "${result.name}" berhasil dibuat.`;
-      setInfo(message);
-      setCategoryMessage(message);
+      setIsCategoryMenuOpen(false);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Gagal membuat kategori.";
       setError(message);
-      setCategoryMessage(message);
     } finally {
       setIsCreatingCategory(false);
     }
@@ -602,7 +641,7 @@ export default function TenantPropertyForm({
     setEditingRoomId(room.id);
     setRoomName(room.name);
     setRoomDescription(room.description);
-    setRoomPrice(room.price);
+    setRoomPrice(sanitizeNumberInput(String(room.price)));
     setRoomUnits(String(room.totalUnits));
     setRoomGuests(String(room.maxGuests));
     setInfo("Mode edit room aktif.");
@@ -932,21 +971,32 @@ export default function TenantPropertyForm({
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Kategori Properti (ID)
+                  Kategori Properti
                 </label>
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Cari kategori (min. 2 huruf) mis: Hotel, Villa"
+                    placeholder="Pilih atau ketik kategori (min. 2 huruf)"
                     value={categoryQuery}
                     onChange={(event) => {
                       setCategoryQuery(event.target.value);
                       setCategoryId("");
                       setError("");
                     }}
+                    onFocus={() => {
+                      setIsCategoryMenuOpen(true);
+                      if (!categoryOptions.length && !isLoadingCategory) {
+                        void loadCategoryOptions("");
+                      }
+                    }}
+                    onBlur={() => {
+                      window.setTimeout(() => {
+                        setIsCategoryMenuOpen(false);
+                      }, 150);
+                    }}
                     className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
                   />
-                  {categoryOptions.length ? (
+                  {showCategoryDropdown ? (
                     <div className="absolute z-10 mt-2 w-full rounded-2xl border border-slate-200 bg-white shadow-lg">
                       {categoryOptions.map((option) => (
                         <button
@@ -956,6 +1006,7 @@ export default function TenantPropertyForm({
                             setCategoryId(option.id);
                             setCategoryQuery(option.name);
                             setCategoryOptions([]);
+                            setIsCategoryMenuOpen(false);
                           }}
                           className="flex w-full flex-col gap-1 border-b border-slate-100 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50 last:border-b-0"
                         >
@@ -964,60 +1015,22 @@ export default function TenantPropertyForm({
                           </span>
                         </button>
                       ))}
+                      {showCreateCategoryOption ? (
+                        <button
+                          type="button"
+                          onClick={handleCreateCategory}
+                          disabled={isCreatingCategory}
+                          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-amber-700 transition hover:bg-amber-50"
+                        >
+                          <span>{`Buat kategori "${normalizedCategoryQuery}"`}</span>
+                          <span className="text-xs text-amber-600">
+                            {isCreatingCategory ? "Membuat..." : "Buat"}
+                          </span>
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
-                {categoryOptions.length === 0 &&
-                categoryQuery.trim().length < 2 ? (
-                  <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-                    {CATEGORY_SUGGESTIONS.map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => {
-                          setCategoryQuery(item);
-                          setCategoryId("");
-                          setError("");
-                        }}
-                        className="rounded-full border border-slate-200 px-3 py-1 text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {isLoadingCategory ? (
-                  <p className="text-xs text-slate-400">Memuat kategori...</p>
-                ) : null}
-                {!isLoadingCategory &&
-                categoryQuery.trim().length >= 2 &&
-                categoryOptions.length === 0 ? (
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-amber-600">
-                    <span>Kategori tidak ditemukan.</span>
-                    <button
-                      type="button"
-                      onClick={handleCreateCategory}
-                      disabled={isCreatingCategory}
-                      className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:text-amber-800"
-                    >
-                      {isCreatingCategory
-                        ? "Membuat..."
-                        : `Buat "${categoryQuery.trim()}"`}
-                    </button>
-                  </div>
-                ) : null}
-                {categoryMessage ? (
-                  <p className="text-xs text-slate-500">{categoryMessage}</p>
-                ) : null}
-                {categoryId ? (
-                  <p className="text-xs text-slate-500">
-                    ID terpilih: {categoryId}
-                  </p>
-                ) : (
-                  <p className="text-xs text-slate-400">
-                    Pilih kategori milik tenant.
-                  </p>
-                )}
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -1303,10 +1316,13 @@ export default function TenantPropertyForm({
                     Harga
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    value={roomPrice}
-                    onChange={(event) => setRoomPrice(event.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Rp 1.000.000"
+                    value={roomPrice ? formatIDR(roomPrice) : ""}
+                    onChange={(event) =>
+                      setRoomPrice(sanitizeNumberInput(event.target.value))
+                    }
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
                   />
                 </div>
@@ -1365,7 +1381,7 @@ export default function TenantPropertyForm({
                           {draft.description}
                         </p>
                         <p className="text-xs text-slate-500">
-                          Rp {draft.price} • {draft.totalUnits} unit •{" "}
+                          {formatIDR(draft.price)} • {draft.totalUnits} unit •{" "}
                           {draft.maxGuests} tamu
                         </p>
                       </div>
@@ -1464,10 +1480,13 @@ export default function TenantPropertyForm({
                     Harga
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    value={roomPrice}
-                    onChange={(event) => setRoomPrice(event.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Rp 1.000.000"
+                    value={roomPrice ? formatIDR(roomPrice) : ""}
+                    onChange={(event) =>
+                      setRoomPrice(sanitizeNumberInput(event.target.value))
+                    }
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
                   />
                 </div>
@@ -1542,7 +1561,7 @@ export default function TenantPropertyForm({
                             {room.description}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Rp {room.price} • {room.totalUnits} unit •{" "}
+                            {formatIDR(room.price)} • {room.totalUnits} unit •{" "}
                             {room.maxGuests} tamu
                           </p>
                         </div>

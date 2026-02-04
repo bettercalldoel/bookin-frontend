@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { clearAuthToken, getAuthToken } from "@/lib/auth-client";
 
@@ -102,7 +102,25 @@ const properties = [
   },
 ];
 
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getDefaultDateRange = () => {
+  const start = new Date();
+  const end = new Date();
+  end.setDate(start.getDate() + 2);
+  return {
+    startDate: formatLocalDate(start),
+    endDate: formatLocalDate(end),
+  };
+};
+
 export default function Home() {
+  const router = useRouter();
   const [activeSlide, setActiveSlide] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
@@ -112,6 +130,17 @@ export default function Home() {
   const userMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   const isTenant = userType === "TENANT";
+  const [searchForm, setSearchForm] = useState(() => {
+    const defaults = getDefaultDateRange();
+    return {
+      locTerm: "",
+      startDate: defaults.startDate,
+      endDate: defaults.endDate,
+      adults: 2,
+      children: 0,
+      rooms: 1,
+    };
+  });
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -153,6 +182,21 @@ export default function Home() {
       window.removeEventListener("scroll", updatePosition, true);
     };
   }, [isUserMenuOpen]);
+
+  const handleSearchSubmit = () => {
+    const params = new URLSearchParams();
+    params.set("lat", "");
+    params.set("lng", "");
+    params.set("country", "");
+    params.set("start_date", searchForm.startDate);
+    params.set("end_date", searchForm.endDate);
+    params.set("adults", String(searchForm.adults));
+    params.set("children", String(searchForm.children));
+    params.set("rooms", String(searchForm.rooms));
+    params.set("loc_term", searchForm.locTerm || "");
+    params.set("page", "1");
+    router.push(`/search?${params.toString()}`);
+  };
 
   useEffect(() => {
     const token = getAuthToken();
@@ -488,16 +532,36 @@ export default function Home() {
                       Gunakan kalender untuk memilih tanggal berangkat serta durasi menginap.
                     </p>
                   </div>
-                  <button className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
+                  <button
+                    type="button"
+                    onClick={handleSearchSubmit}
+                    className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                  >
                     Cari properti
                   </button>
                 </div>
-                <form className="mt-8 grid gap-4 md:grid-cols-3">
+                <form
+                  className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleSearchSubmit();
+                  }}
+                >
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                       Kota destinasi
                     </label>
-                    <select className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none">
+                    <select
+                      value={searchForm.locTerm}
+                      onChange={(event) =>
+                        setSearchForm((prev) => ({
+                          ...prev,
+                          locTerm: event.target.value,
+                        }))
+                      }
+                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                    >
+                      <option value="">Semua kota</option>
                       {destinations.map((city) => (
                         <option key={city} value={city}>
                           {city}
@@ -507,21 +571,84 @@ export default function Home() {
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Tanggal berangkat
+                      Check-in
                     </label>
                     <input
                       type="date"
+                      value={searchForm.startDate}
+                      onChange={(event) =>
+                        setSearchForm((prev) => ({
+                          ...prev,
+                          startDate: event.target.value,
+                        }))
+                      }
                       className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
                     />
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Durasi (malam)
+                      Check-out
+                    </label>
+                    <input
+                      type="date"
+                      value={searchForm.endDate}
+                      onChange={(event) =>
+                        setSearchForm((prev) => ({
+                          ...prev,
+                          endDate: event.target.value,
+                        }))
+                      }
+                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Dewasa
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={searchForm.adults}
+                      onChange={(event) =>
+                        setSearchForm((prev) => ({
+                          ...prev,
+                          adults: Number(event.target.value),
+                        }))
+                      }
+                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Anak
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={searchForm.children}
+                      onChange={(event) =>
+                        setSearchForm((prev) => ({
+                          ...prev,
+                          children: Number(event.target.value),
+                        }))
+                      }
+                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Kamar
                     </label>
                     <input
                       type="number"
                       min={1}
-                      defaultValue={2}
+                      value={searchForm.rooms}
+                      onChange={(event) =>
+                        setSearchForm((prev) => ({
+                          ...prev,
+                          rooms: Number(event.target.value),
+                        }))
+                      }
                       className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
                     />
                   </div>

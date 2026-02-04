@@ -1,13 +1,58 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import TenantPropertyForm from "@/components/tenant-property-form";
+import { API_BASE_URL } from "@/lib/api";
+import { getAuthToken } from "@/lib/auth-client";
 
 type DashboardUser = {
   name: string;
   email: string;
   emailVerifiedAt: string | null;
   tenantProfile?: { companyName?: string | null } | null;
+};
+
+type TenantRoom = {
+  id: string;
+  name: string;
+  price: string;
+  totalUnits: number;
+  maxGuests: number;
+};
+
+type TenantProperty = {
+  id: string;
+  name: string;
+  rooms: TenantRoom[];
+};
+
+type AvailabilityItem = {
+  date: string;
+  availableUnits: number;
+  isClosed: boolean;
+  basePrice: string;
+  adjustment: string;
+  finalPrice: string;
+};
+
+type AvailabilityResponse = {
+  roomTypeId: string;
+  propertyId: string;
+  totalUnits: number;
+  items: AvailabilityItem[];
+};
+
+type RateRule = {
+  id: string;
+  name: string;
+  scope: "PROPERTY" | "ROOM_TYPE";
+  propertyId: string | null;
+  roomTypeId: string | null;
+  startDate: string;
+  endDate: string;
+  adjustmentType: "PERCENT" | "NOMINAL";
+  adjustmentValue: string;
+  isActive: boolean;
 };
 
 type NavKey =
@@ -61,6 +106,43 @@ const formatCurrency = (value: number) =>
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(value);
+
+const weekdayLabels = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+
+const getWeekdayLabel = (dateValue: string) => {
+  const date = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  return weekdayLabels[date.getDay()] ?? "";
+};
+
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const fetchJson = async <T,>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> => {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+      ...(options.headers ?? {}),
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message =
+      (data as { message?: string }).message || "Permintaan gagal.";
+    throw new Error(message);
+  }
+
+  return data as T;
+};
 
 const mockSales = [
   {
@@ -132,11 +214,6 @@ const mockCategories = [
   { id: "CAT-03", name: "Resort" },
 ];
 
-const calendarDays = Array.from({ length: 30 }).map((_, index) => ({
-  day: index + 1,
-  status: index % 7 === 0 ? "Booked" : "Available",
-}));
-
 export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const [active, setActive] = useState<NavKey>("sales");
   const [salesView, setSalesView] = useState<"property" | "transaction" | "user">(
@@ -145,11 +222,327 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const [sortBy, setSortBy] = useState<"date" | "total">("date");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [statusFilter, setStatusFilter] = useState("All");
+  const [properties, setProperties] = useState<TenantProperty[]>([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(false);
+  const [propertiesError, setPropertiesError] = useState<string | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState("");
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+
+  const [availabilityQuery, setAvailabilityQuery] = useState({
+    startDate: "",
+    endDate: "",
+  });
+  const [availabilityMode, setAvailabilityMode] = useState<"range" | "dates">(
+    "range",
+  );
+  const [availabilityForm, setAvailabilityForm] = useState({
+    startDate: "",
+    endDate: "",
+    dates: "",
+    isClosed: false,
+    availableUnits: "",
+  });
+  const [availabilityData, setAvailabilityData] =
+    useState<AvailabilityResponse | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(
+    null,
+  );
+  const [availabilitySuccess, setAvailabilitySuccess] = useState<string | null>(
+    null,
+  );
+  const [availabilityView, setAvailabilityView] = useState<"table" | "grid">(
+    "grid",
+  );
+
+  const [rateRules, setRateRules] = useState<RateRule[]>([]);
+  const [rateRulesLoading, setRateRulesLoading] = useState(false);
+  const [rateRulesError, setRateRulesError] = useState<string | null>(null);
+  const [rateMode, setRateMode] = useState<"range" | "dates">("range");
+  const [rateForm, setRateForm] = useState({
+    name: "",
+    scope: "ROOM_TYPE" as "ROOM_TYPE" | "PROPERTY",
+    propertyId: "",
+    roomTypeId: "",
+    startDate: "",
+    endDate: "",
+    dates: "",
+    adjustmentType: "NOMINAL" as "NOMINAL" | "PERCENT",
+    adjustmentValue: "",
+    isActive: true,
+  });
 
   const filteredOrders = useMemo(() => {
     if (statusFilter === "All") return mockOrders;
     return mockOrders.filter((order) => order.status === statusFilter);
   }, [statusFilter]);
+
+  const selectedProperty = useMemo(
+    () => properties.find((item) => item.id === selectedPropertyId) ?? null,
+    [properties, selectedPropertyId],
+  );
+
+  const availableRooms = selectedProperty?.rooms ?? [];
+
+  const selectedRoom = useMemo(
+    () => availableRooms.find((room) => room.id === selectedRoomId) ?? null,
+    [availableRooms, selectedRoomId],
+  );
+
+  const fetchProperties = async () => {
+    try {
+      setPropertiesLoading(true);
+      setPropertiesError(null);
+      const data = await fetchJson<any[]>("/properties");
+      const mapped = data.map((item) => ({
+        id: item.id,
+        name: item.name,
+        rooms: (item.rooms ?? []).map((room: any) => ({
+          id: room.id,
+          name: room.name,
+          price: room.price,
+          totalUnits: room.totalUnits,
+          maxGuests: room.maxGuests,
+        })),
+      })) as TenantProperty[];
+      setProperties(mapped);
+    } catch (err) {
+      setPropertiesError(
+        err instanceof Error ? err.message : "Gagal memuat properti.",
+      );
+      setProperties([]);
+    } finally {
+      setPropertiesLoading(false);
+    }
+  };
+
+  const loadAvailability = async () => {
+    if (!selectedRoomId) {
+      setAvailabilityError("Pilih room terlebih dahulu.");
+      return;
+    }
+    if (!availabilityQuery.startDate || !availabilityQuery.endDate) {
+      setAvailabilityError("Tanggal mulai dan akhir wajib diisi.");
+      return;
+    }
+
+    try {
+      setAvailabilityLoading(true);
+      setAvailabilityError(null);
+      const query = new URLSearchParams({
+        startDate: availabilityQuery.startDate,
+        endDate: availabilityQuery.endDate,
+      });
+      const data = await fetchJson<AvailabilityResponse>(
+        `/availability/room-types/${selectedRoomId}?${query.toString()}`,
+      );
+      setAvailabilityData(data);
+    } catch (err) {
+      setAvailabilityData(null);
+      setAvailabilityError(
+        err instanceof Error ? err.message : "Gagal memuat kalender.",
+      );
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const handleAvailabilitySave = async () => {
+    if (!selectedRoomId) {
+      setAvailabilityError("Pilih room terlebih dahulu.");
+      return;
+    }
+
+    const payload: Record<string, any> = {
+      isClosed: availabilityForm.isClosed,
+    };
+
+    if (availabilityMode === "dates") {
+      const dates = availabilityForm.dates
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (dates.length === 0) {
+        setAvailabilityError("Isi tanggal khusus atau ubah ke mode rentang.");
+        return;
+      }
+      payload.dates = dates;
+    } else {
+      if (!availabilityForm.startDate || !availabilityForm.endDate) {
+        setAvailabilityError("Tanggal mulai dan akhir wajib diisi.");
+        return;
+      }
+      payload.startDate = availabilityForm.startDate;
+      payload.endDate = availabilityForm.endDate;
+    }
+
+    if (!availabilityForm.isClosed && availabilityForm.availableUnits) {
+      payload.availableUnits = Number(availabilityForm.availableUnits);
+    }
+
+    try {
+      setAvailabilityLoading(true);
+      setAvailabilityError(null);
+      setAvailabilitySuccess(null);
+      await fetchJson(`/availability/room-types/${selectedRoomId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      setAvailabilitySuccess("Ketersediaan berhasil diperbarui.");
+      await loadAvailability();
+    } catch (err) {
+      setAvailabilityError(
+        err instanceof Error ? err.message : "Gagal menyimpan ketersediaan.",
+      );
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const loadRateRules = async () => {
+    try {
+      setRateRulesLoading(true);
+      setRateRulesError(null);
+      const params = new URLSearchParams();
+      params.set("scope", rateForm.scope);
+      if (rateForm.scope === "PROPERTY" && selectedPropertyId) {
+        params.set("propertyId", selectedPropertyId);
+      }
+      if (rateForm.scope === "ROOM_TYPE" && selectedRoomId) {
+        params.set("roomTypeId", selectedRoomId);
+      }
+      const path = params.toString()
+        ? `/availability/rate-rules?${params.toString()}`
+        : "/availability/rate-rules";
+      const data = await fetchJson<RateRule[]>(path);
+      setRateRules(data);
+    } catch (err) {
+      setRateRulesError(
+        err instanceof Error ? err.message : "Gagal memuat rate rules.",
+      );
+      setRateRules([]);
+    } finally {
+      setRateRulesLoading(false);
+    }
+  };
+
+  const handleCreateRateRule = async () => {
+    if (!rateForm.name.trim()) {
+      setRateRulesError("Nama rule wajib diisi.");
+      return;
+    }
+    if (rateForm.scope === "PROPERTY" && !selectedPropertyId) {
+      setRateRulesError("Pilih properti terlebih dahulu.");
+      return;
+    }
+    if (rateForm.scope === "ROOM_TYPE" && !selectedRoomId) {
+      setRateRulesError("Pilih room terlebih dahulu.");
+      return;
+    }
+    const payload: Record<string, any> = {
+      name: rateForm.name.trim(),
+      scope: rateForm.scope,
+      adjustmentType: rateForm.adjustmentType,
+      adjustmentValue: rateForm.adjustmentValue,
+      isActive: rateForm.isActive,
+    };
+
+    if (rateForm.scope === "PROPERTY") {
+      payload.propertyId = selectedPropertyId;
+    } else {
+      payload.roomTypeId = selectedRoomId;
+    }
+
+    if (rateMode === "dates") {
+      const dates = rateForm.dates
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (dates.length === 0) {
+        setRateRulesError("Isi tanggal khusus atau ubah ke mode rentang.");
+        return;
+      }
+      payload.dates = dates;
+    } else {
+      if (!rateForm.startDate || !rateForm.endDate) {
+        setRateRulesError("Tanggal mulai dan akhir wajib diisi.");
+        return;
+      }
+      payload.startDate = rateForm.startDate;
+      payload.endDate = rateForm.endDate;
+    }
+
+    try {
+      setRateRulesLoading(true);
+      setRateRulesError(null);
+      await fetchJson("/availability/rate-rules", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setRateForm((prev) => ({
+        ...prev,
+        name: "",
+        adjustmentValue: "",
+        startDate: "",
+        endDate: "",
+        dates: "",
+      }));
+      await loadRateRules();
+    } catch (err) {
+      setRateRulesError(
+        err instanceof Error ? err.message : "Gagal menyimpan rule.",
+      );
+    } finally {
+      setRateRulesLoading(false);
+    }
+  };
+
+  const handleDeleteRateRule = async (id: string) => {
+    try {
+      setRateRulesLoading(true);
+      setRateRulesError(null);
+      await fetchJson(`/availability/rate-rules/${id}`, { method: "DELETE" });
+      await loadRateRules();
+    } catch (err) {
+      setRateRulesError(
+        err instanceof Error ? err.message : "Gagal menghapus rule.",
+      );
+    } finally {
+      setRateRulesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if ((active === "property-report" || active === "rates") && properties.length === 0) {
+      fetchProperties();
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (properties.length > 0 && !selectedPropertyId) {
+      setSelectedPropertyId(properties[0].id);
+    }
+  }, [properties, selectedPropertyId]);
+
+  useEffect(() => {
+    if (!selectedProperty) return;
+    if (selectedProperty.rooms.length === 0) {
+      setSelectedRoomId("");
+      return;
+    }
+    const exists = selectedProperty.rooms.some(
+      (room) => room.id === selectedRoomId,
+    );
+    if (!exists) {
+      setSelectedRoomId(selectedProperty.rooms[0].id);
+    }
+  }, [selectedProperty, selectedRoomId]);
+
+  useEffect(() => {
+    if (active === "rates") {
+      loadRateRules();
+    }
+  }, [active, selectedPropertyId, selectedRoomId, rateForm.scope]);
 
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900">
@@ -337,39 +730,317 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   Property Report
                 </p>
                 <h2 className="text-2xl font-semibold text-slate-900">
-                  Ketersediaan properti & kamar (calendar view)
+                  Room availability dan kalender harga
                 </h2>
               </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {["Available", "Booked", "Closed"].map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
-                  >
-                    {item}
-                  </div>
-                ))}
-              </div>
+
               <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-400">
-                  {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((day) => (
-                    <div key={day}>{day}</div>
-                  ))}
-                </div>
-                <div className="mt-2 grid grid-cols-7 gap-2">
-                  {calendarDays.map((item) => (
-                    <div
-                      key={item.day}
-                      className={`rounded-xl border px-2 py-3 text-center text-xs font-semibold ${
-                        item.status === "Booked"
-                          ? "border-rose-200 bg-rose-50 text-rose-600"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      }`}
+                <div className="grid gap-4 md:grid-cols-3">
+                  <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
+                    Properti
+                    <select
+                      value={selectedPropertyId}
+                      onChange={(event) =>
+                        setSelectedPropertyId(event.target.value)
+                      }
+                      className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
                     >
-                      <p className="text-sm">{item.day}</p>
-                      <p>{item.status}</p>
+                      <option value="">Pilih properti</option>
+                      {properties.map((property) => (
+                        <option key={property.id} value={property.id}>
+                          {property.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
+                    Room
+                    <select
+                      value={selectedRoomId}
+                      onChange={(event) =>
+                        setSelectedRoomId(event.target.value)
+                      }
+                      className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                      disabled={!selectedProperty}
+                    >
+                      <option value="">Pilih room</option>
+                      {availableRooms.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.name} - {formatCurrency(Number(room.price))}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="flex flex-col justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                    <p className="font-semibold text-slate-800">
+                      Harga dasar room
+                    </p>
+                    <p>
+                      {selectedRoom
+                        ? formatCurrency(Number(selectedRoom.price))
+                        : "Pilih room"}
+                    </p>
+                  </div>
+                </div>
+
+                {propertiesLoading && (
+                  <p className="mt-3 text-xs text-slate-500">
+                    Memuat properti...
+                  </p>
+                )}
+                {propertiesError && (
+                  <p className="mt-3 text-xs text-rose-600">
+                    {propertiesError}
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div className="grid flex-1 gap-4 md:grid-cols-2">
+                    <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
+                      Tanggal mulai
+                      <input
+                        type="date"
+                        value={availabilityQuery.startDate}
+                        onChange={(event) =>
+                          setAvailabilityQuery((prev) => ({
+                            ...prev,
+                            startDate: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
+                      Tanggal akhir
+                      <input
+                        type="date"
+                        value={availabilityQuery.endDate}
+                        onChange={(event) =>
+                          setAvailabilityQuery((prev) => ({
+                            ...prev,
+                            endDate: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadAvailability}
+                    className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                    disabled={availabilityLoading}
+                  >
+                    {availabilityLoading ? "Memuat..." : "Muat kalender"}
+                  </button>
+                </div>
+
+                {availabilityError && (
+                  <p className="mt-3 text-xs text-rose-600">
+                    {availabilityError}
+                  </p>
+                )}
+                {availabilitySuccess && (
+                  <p className="mt-3 text-xs text-emerald-600">
+                    {availabilitySuccess}
+                  </p>
+                )}
+
+                {availabilityData && (
+                  <div className="mt-4 space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(["grid", "table"] as const).map((view) => (
+                        <button
+                          key={view}
+                          type="button"
+                          onClick={() => setAvailabilityView(view)}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                            availabilityView === view
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 text-slate-600"
+                          }`}
+                        >
+                          {view === "grid" ? "Calendar" : "Table"}
+                        </button>
+                      ))}
                     </div>
-                  ))}
+
+                    {availabilityView === "grid" ? (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {availabilityData.items.map((item) => (
+                          <div
+                            key={item.date}
+                            className={`rounded-2xl border p-4 ${
+                              item.isClosed
+                                ? "border-rose-200 bg-rose-50"
+                                : "border-emerald-200 bg-emerald-50"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                                  {getWeekdayLabel(item.date)}
+                                </p>
+                                <p className="text-sm font-semibold text-slate-900">
+                                  {item.date}
+                                </p>
+                              </div>
+                              <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-600">
+                                {item.isClosed ? "Closed" : "Available"}
+                              </span>
+                            </div>
+                            <div className="mt-3 space-y-1 text-xs text-slate-600">
+                              <p>Stok: {item.availableUnits}</p>
+                              <p>Harga dasar: {formatCurrency(Number(item.basePrice))}</p>
+                              <p>Penyesuaian: {formatCurrency(Number(item.adjustment))}</p>
+                            </div>
+                            <p className="mt-3 text-sm font-semibold text-slate-900">
+                              {formatCurrency(Number(item.finalPrice))}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-slate-200">
+                        <table className="w-full text-left text-sm">
+                          <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-400">
+                            <tr>
+                              <th className="px-4 py-3">Tanggal</th>
+                              <th className="px-4 py-3">Status</th>
+                              <th className="px-4 py-3">Stok</th>
+                              <th className="px-4 py-3 text-right">Harga final</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {availabilityData.items.map((item) => (
+                              <tr key={item.date} className="border-t border-slate-100">
+                                <td className="px-4 py-3 font-semibold text-slate-900">
+                                  {item.date}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600">
+                                  {item.isClosed ? "Closed" : "Available"}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600">
+                                  {item.availableUnits}
+                                </td>
+                                <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                                  {formatCurrency(Number(item.finalPrice))}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
+                      Update availability
+                    </p>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Tutup atau buka room pada tanggal tertentu
+                    </h3>
+                  </div>
+                  <div className="flex gap-2">
+                    {(["range", "dates"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setAvailabilityMode(mode)}
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                          availabilityMode === mode
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {mode === "range" ? "Rentang" : "Tanggal khusus"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  {availabilityMode === "range" ? (
+                    <>
+                      <input
+                        type="date"
+                        value={availabilityForm.startDate}
+                        onChange={(event) =>
+                          setAvailabilityForm((prev) => ({
+                            ...prev,
+                            startDate: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                      />
+                      <input
+                        type="date"
+                        value={availabilityForm.endDate}
+                        onChange={(event) =>
+                          setAvailabilityForm((prev) => ({
+                            ...prev,
+                            endDate: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                      />
+                    </>
+                  ) : (
+                    <input
+                      type="text"
+                      value={availabilityForm.dates}
+                      onChange={(event) =>
+                        setAvailabilityForm((prev) => ({
+                          ...prev,
+                          dates: event.target.value,
+                        }))
+                      }
+                      placeholder="2026-12-24, 2026-12-25"
+                      className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm md:col-span-2"
+                    />
+                  )}
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={availabilityForm.isClosed}
+                      onChange={(event) =>
+                        setAvailabilityForm((prev) => ({
+                          ...prev,
+                          isClosed: event.target.checked,
+                        }))
+                      }
+                    />
+                    Tutup room
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="Available units"
+                    value={availabilityForm.availableUnits}
+                    onChange={(event) =>
+                      setAvailabilityForm((prev) => ({
+                        ...prev,
+                        availableUnits: event.target.value,
+                      }))
+                    }
+                    className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                    disabled={availabilityForm.isClosed}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAvailabilitySave}
+                    className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white md:col-span-2"
+                    disabled={availabilityLoading}
+                  >
+                    {availabilityLoading ? "Menyimpan..." : "Simpan availability"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -609,33 +1280,223 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   <input
                     type="text"
                     placeholder="Nama aturan (contoh: Libur Panjang)"
+                    value={rateForm.name}
+                    onChange={(event) =>
+                      setRateForm((prev) => ({
+                        ...prev,
+                        name: event.target.value,
+                      }))
+                    }
                     className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
                   />
-                  <select className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm">
-                    <option>Nominal</option>
-                    <option>Persentase</option>
+                  <select
+                    value={rateForm.adjustmentType}
+                    onChange={(event) =>
+                      setRateForm((prev) => ({
+                        ...prev,
+                        adjustmentType: event.target.value as "NOMINAL" | "PERCENT",
+                      }))
+                    }
+                    className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                  >
+                    <option value="NOMINAL">Nominal</option>
+                    <option value="PERCENT">Persentase</option>
                   </select>
-                  <input
-                    type="date"
+                  <select
+                    value={rateForm.scope}
+                    onChange={(event) =>
+                      setRateForm((prev) => ({
+                        ...prev,
+                        scope: event.target.value as "ROOM_TYPE" | "PROPERTY",
+                      }))
+                    }
                     className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
-                  />
-                  <input
-                    type="date"
+                  >
+                    <option value="ROOM_TYPE">Room type</option>
+                    <option value="PROPERTY">Properti</option>
+                  </select>
+                  <div className="flex gap-2">
+                    {(["range", "dates"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setRateMode(mode)}
+                        className={`flex-1 rounded-2xl border px-3 py-2 text-xs font-semibold ${
+                          rateMode === mode
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {mode === "range" ? "Rentang" : "Tanggal khusus"}
+                      </button>
+                    ))}
+                  </div>
+                  <select
+                    value={selectedPropertyId}
+                    onChange={(event) =>
+                      setSelectedPropertyId(event.target.value)
+                    }
                     className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
-                  />
+                    disabled={propertiesLoading}
+                  >
+                    <option value="">Pilih properti</option>
+                    {properties.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedRoomId}
+                    onChange={(event) => setSelectedRoomId(event.target.value)}
+                    className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                    disabled={!selectedProperty || rateForm.scope === "PROPERTY"}
+                  >
+                    <option value="">Pilih room</option>
+                    {availableRooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {room.name}
+                      </option>
+                    ))}
+                  </select>
+                  {rateMode === "range" ? (
+                    <>
+                      <input
+                        type="date"
+                        value={rateForm.startDate}
+                        onChange={(event) =>
+                          setRateForm((prev) => ({
+                            ...prev,
+                            startDate: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                      />
+                      <input
+                        type="date"
+                        value={rateForm.endDate}
+                        onChange={(event) =>
+                          setRateForm((prev) => ({
+                            ...prev,
+                            endDate: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
+                      />
+                    </>
+                  ) : (
+                    <input
+                      type="text"
+                      value={rateForm.dates}
+                      onChange={(event) =>
+                        setRateForm((prev) => ({
+                          ...prev,
+                          dates: event.target.value,
+                        }))
+                      }
+                      placeholder="2026-12-24, 2026-12-25"
+                      className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm md:col-span-2"
+                    />
+                  )}
                   <input
                     type="number"
                     placeholder="Nilai penyesuaian"
+                    value={rateForm.adjustmentValue}
+                    onChange={(event) =>
+                      setRateForm((prev) => ({
+                        ...prev,
+                        adjustmentValue: event.target.value,
+                      }))
+                    }
                     className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
                   />
-                  <button className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-                    Simpan Rule
+                  <button
+                    type="button"
+                    onClick={handleCreateRateRule}
+                    className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                    disabled={rateRulesLoading}
+                  >
+                    {rateRulesLoading ? "Menyimpan..." : "Simpan Rule"}
                   </button>
                 </div>
+                {rateRulesError && (
+                  <p className="mt-3 text-xs text-rose-600">{rateRulesError}</p>
+                )}
                 <p className="mt-3 text-xs text-slate-500">
                   Penyesuaian dapat diterapkan untuk seluruh tanggal atau tanggal
                   tertentu dalam rentang.
                 </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    Daftar rate rule
+                  </p>
+                  <button
+                    type="button"
+                    onClick={loadRateRules}
+                    className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3">Nama</th>
+                        <th className="px-4 py-3">Scope</th>
+                        <th className="px-4 py-3">Tanggal</th>
+                        <th className="px-4 py-3">Penyesuaian</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rateRules.map((rule) => (
+                        <tr key={rule.id} className="border-t border-slate-100">
+                          <td className="px-4 py-3 font-semibold text-slate-900">
+                            {rule.name}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {rule.scope === "ROOM_TYPE" ? "Room" : "Properti"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {rule.startDate} - {rule.endDate}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {rule.adjustmentType === "PERCENT"
+                              ? `${rule.adjustmentValue}%`
+                              : formatCurrency(Number(rule.adjustmentValue))}
+                          </td>
+                          <td className="px-4 py-3 text-xs font-semibold text-slate-500">
+                            {rule.isActive ? "Aktif" : "Nonaktif"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRateRule(rule.id)}
+                              className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600"
+                            >
+                              Hapus
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {!rateRulesLoading && rateRules.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-4 py-6 text-center text-sm text-slate-500"
+                          >
+                            Belum ada rate rule.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           ) : null}

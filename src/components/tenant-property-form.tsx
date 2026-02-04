@@ -146,7 +146,10 @@ async function createCategory(name: string) {
   });
 }
 
-async function updatePropertyRequest(id: string, payload: Record<string, unknown>) {
+async function updatePropertyRequest(
+  id: string,
+  payload: Record<string, unknown>,
+) {
   const token = getAuthToken();
   if (!token) {
     throw new Error("Unauthorized.");
@@ -175,7 +178,10 @@ async function deletePropertyRequest(id: string) {
   });
 }
 
-async function createRoomRequest(propertyId: string, payload: Record<string, unknown>) {
+async function createRoomRequest(
+  propertyId: string,
+  payload: Record<string, unknown>,
+) {
   const token = getAuthToken();
   if (!token) {
     throw new Error("Unauthorized.");
@@ -193,19 +199,25 @@ async function createRoomRequest(propertyId: string, payload: Record<string, unk
   );
 }
 
-async function updateRoomRequest(roomId: string, payload: Record<string, unknown>) {
+async function updateRoomRequest(
+  roomId: string,
+  payload: Record<string, unknown>,
+) {
   const token = getAuthToken();
   if (!token) {
     throw new Error("Unauthorized.");
   }
 
-  return apiFetch<{ message: string; id: string }>(`/properties/rooms/${roomId}`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
+  return apiFetch<{ message: string; id: string }>(
+    `/properties/rooms/${roomId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+  );
 }
 
 async function deleteRoomRequest(roomId: string) {
@@ -214,12 +226,15 @@ async function deleteRoomRequest(roomId: string) {
     throw new Error("Unauthorized.");
   }
 
-  return apiFetch<{ message: string; id: string }>(`/properties/rooms/${roomId}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
+  return apiFetch<{ message: string; id: string }>(
+    `/properties/rooms/${roomId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
-  });
+  );
 }
 
 async function uploadToCloudinary(file: File, signature: SignatureResponse) {
@@ -279,8 +294,12 @@ export default function TenantPropertyForm({
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [properties, setProperties] = useState<PropertyItem[]>([]);
-  const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [editingPropertyId, setEditingPropertyId] = useState<string | null>(
+    null,
+  );
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
+    null,
+  );
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [roomName, setRoomName] = useState("");
   const [roomDescription, setRoomDescription] = useState("");
@@ -365,7 +384,8 @@ export default function TenantPropertyForm({
   useEffect(() => {
     if (!categoryOptions.length || !categoryQuery.trim()) return;
     const match = categoryOptions.find(
-      (option) => option.name.toLowerCase() === categoryQuery.trim().toLowerCase(),
+      (option) =>
+        option.name.toLowerCase() === categoryQuery.trim().toLowerCase(),
     );
     if (match && categoryId !== match.id) {
       setCategoryId(match.id);
@@ -388,7 +408,8 @@ export default function TenantPropertyForm({
         );
         setCityOptions(result);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Gagal memuat kota.";
+        const message =
+          err instanceof Error ? err.message : "Gagal memuat kota.";
         setError(message);
       } finally {
         setIsLoadingCity(false);
@@ -402,7 +423,8 @@ export default function TenantPropertyForm({
     if (!files || files.length === 0) return;
     setError("");
     setInfo("");
-    const remaining = MAX_GALLERY_IMAGES - galleryUrls.length - stagedFiles.length;
+    const remaining =
+      MAX_GALLERY_IMAGES - galleryUrls.length - stagedFiles.length;
     if (remaining <= 0) {
       setError(`Maksimal ${MAX_GALLERY_IMAGES} foto untuk galeri.`);
       return;
@@ -610,7 +632,9 @@ export default function TenantPropertyForm({
         setInfo(`Kategori "${created.name}" berhasil dibuat.`);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Pilih kategori properti terlebih dahulu.";
+          err instanceof Error
+            ? err.message
+            : "Pilih kategori properti terlebih dahulu.";
         setError(message);
         return;
       }
@@ -744,7 +768,8 @@ export default function TenantPropertyForm({
       await loadProperties();
       resetRoomForm();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal menyimpan room.";
+      const message =
+        err instanceof Error ? err.message : "Gagal menyimpan room.";
       setError(message);
     } finally {
       setIsSavingRoom(false);
@@ -763,7 +788,8 @@ export default function TenantPropertyForm({
         resetRoomForm();
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal menghapus room.";
+      const message =
+        err instanceof Error ? err.message : "Gagal menghapus room.";
       setError(message);
     }
   };
@@ -821,7 +847,9 @@ export default function TenantPropertyForm({
                         <p className="text-xs text-slate-500">
                           {property.cityName
                             ? `${property.cityName}${
-                                property.province ? `, ${property.province}` : ""
+                                property.province
+                                  ? `, ${property.province}`
+                                  : ""
                               }`
                             : `City ID: ${property.cityId}`}
                         </p>
@@ -873,661 +901,679 @@ export default function TenantPropertyForm({
 
       {showForm ? (
         <form className="space-y-8" onSubmit={handleSubmit}>
-        {editingPropertyId ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-            <span>Mode edit properti aktif.</span>
-            <button
-              type="button"
-              onClick={resetPropertyForm}
-              className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700"
-            >
-              Batalkan
-            </button>
-          </div>
-        ) : null}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
-          Informasi Utama
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">
-              Nama Properti
-            </label>
-            <input
-              type="text"
-              placeholder="Contoh: Oceanview Serenity Villas"
-              value={propertyName}
-              onChange={(event) => setPropertyName(event.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">
-              Kategori Properti (ID)
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Cari kategori (min. 2 huruf) mis: Hotel, Villa"
-                value={categoryQuery}
-                onChange={(event) => {
-                  setCategoryQuery(event.target.value);
-                  setCategoryId("");
-                  setError("");
-                }}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-              />
-              {categoryOptions.length ? (
-                <div className="absolute z-10 mt-2 w-full rounded-2xl border border-slate-200 bg-white shadow-lg">
-                  {categoryOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => {
-                        setCategoryId(option.id);
-                        setCategoryQuery(option.name);
-                        setCategoryOptions([]);
-                      }}
-                      className="flex w-full flex-col gap-1 border-b border-slate-100 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50 last:border-b-0"
-                    >
-                      <span className="font-semibold text-slate-900">
-                        {option.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            {categoryOptions.length === 0 && categoryQuery.trim().length < 2 ? (
-              <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-                {CATEGORY_SUGGESTIONS.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => {
-                      setCategoryQuery(item);
-                      setCategoryId("");
-                      setError("");
-                    }}
-                    className="rounded-full border border-slate-200 px-3 py-1 text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {isLoadingCategory ? (
-              <p className="text-xs text-slate-400">Memuat kategori...</p>
-            ) : null}
-            {!isLoadingCategory &&
-            categoryQuery.trim().length >= 2 &&
-            categoryOptions.length === 0 ? (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-amber-600">
-                <span>Kategori tidak ditemukan.</span>
-                <button
-                  type="button"
-                  onClick={handleCreateCategory}
-                  disabled={isCreatingCategory}
-                  className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:text-amber-800"
-                >
-                  {isCreatingCategory
-                    ? "Membuat..."
-                    : `Buat "${categoryQuery.trim()}"`}
-                </button>
-              </div>
-            ) : null}
-            {categoryMessage ? (
-              <p className="text-xs text-slate-500">{categoryMessage}</p>
-            ) : null}
-            {categoryId ? (
-              <p className="text-xs text-slate-500">ID terpilih: {categoryId}</p>
-            ) : (
-              <p className="text-xs text-slate-400">
-                Pilih kategori milik tenant.
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">
-              Kota (City ID)
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Cari kota (min. 2 huruf)"
-                value={cityQuery}
-                onChange={(event) => {
-                  setCityQuery(event.target.value);
-                  setCityId("");
-                  setError("");
-                }}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-              />
-              {cityOptions.length ? (
-                <div className="absolute z-10 mt-2 w-full rounded-2xl border border-slate-200 bg-white shadow-lg">
-                  {cityOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => {
-                        setCityId(option.id);
-                        setCityQuery(
-                          option.province
-                            ? `${option.name}, ${option.province}`
-                            : option.name,
-                        );
-                        setCityOptions([]);
-                      }}
-                      className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50 last:border-b-0"
-                    >
-                      <span className="font-semibold text-slate-900">
-                        {option.name}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {option.province ?? "Indonesia"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            {isLoadingCity ? (
-              <p className="text-xs text-slate-400">Memuat kota...</p>
-            ) : null}
-            {cityId ? (
-              <p className="text-xs text-slate-500">ID terpilih: {cityId}</p>
-            ) : (
-              <p className="text-xs text-slate-400">Pilih kota dari daftar.</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">
-              Alamat (opsional)
-            </label>
-            <input
-              type="text"
-              placeholder="Alamat lengkap properti"
-              value={propertyAddress}
-              onChange={(event) => setPropertyAddress(event.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
-          Deskripsi Properti
-        </h2>
-        <textarea
-          rows={5}
-          placeholder="Tuliskan deskripsi properti, fasilitas utama, dan keunikan yang ditawarkan."
-          value={propertyDesc}
-          onChange={(event) => setPropertyDesc(event.target.value)}
-          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-        />
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
-            Media Properti
-          </h2>
-          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
-            Cloudinary Signed Upload
-          </span>
-        </div>
-        <div className="space-y-3">
-          <label className="text-sm font-medium text-slate-700">
-            Galeri Properti
-          </label>
-          <div className="flex flex-col gap-2">
-            <input
-              type="file"
-              accept=".jpg,.jpeg,.png,.gif,.webp"
-              multiple
-              onChange={(event) => handleGalleryUpload(event.target.files)}
-              disabled={
-                galleryUrls.length + stagedFiles.length >= MAX_GALLERY_IMAGES
-              }
-              className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800"
-            />
-            <p className="text-xs text-slate-400">
-              Unggah beberapa foto (maks {MAX_GALLERY_IMAGES}) dengan ukuran maks 5MB.
-            </p>
-          </div>
-          {stagedFiles.length ? (
-            <div className="rounded-2xl border border-slate-200 bg-white/80 p-3">
-              <p className="text-xs font-semibold text-slate-700">
-                Staging foto (klik untuk hapus)
-              </p>
-              <div className="mt-2 grid gap-3 sm:grid-cols-3">
-                {stagedFiles.map((item) => (
-                  <button
-                    key={item.previewUrl}
-                    type="button"
-                    onClick={() => handleRemoveStaged(item.previewUrl)}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-200"
-                  >
-                    <img
-                      src={item.previewUrl}
-                      alt={item.file.name}
-                      className="h-24 w-full object-cover transition group-hover:scale-105"
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center bg-slate-900/40 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                      Hapus
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-500">
-                  Pastikan gambar sesuai ketentuan sebelum diupload.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleUploadStaged}
-                  disabled={isUploadingGallery || stagedFiles.length === 0}
-                  className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-                >
-                  {isUploadingGallery ? "Mengunggah..." : "Upload photo"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400">
-              Pilih gambar untuk staging, lalu klik Upload photo.
-            </p>
-          )}
-          {galleryUrls.length ? (
-            <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-              {galleryUrls.map((url) => (
-                <div
-                  key={url}
-                  className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1"
-                >
-                  <span>{url.length > 32 ? `${url.slice(0, 32)}...` : url}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = galleryUrls.filter((item) => item !== url);
-                      setGalleryUrls(next);
-                      if (coverUrl === url) {
-                        setCoverUrl(next[0] ?? "");
-                      }
-                    }}
-                    className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                  >
-                    Hapus
-                  </button>
-                </div>
-              ))}
+          {editingPropertyId ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+              <span>Mode edit properti aktif.</span>
+              <button
+                type="button"
+                onClick={resetPropertyForm}
+                className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700"
+              >
+                Batalkan
+              </button>
             </div>
           ) : null}
-          {isUploadingGallery ? (
-            <p className="text-xs text-slate-500">Mengunggah galeri...</p>
-          ) : null}
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white/80 p-4">
-          <p className="text-sm font-semibold text-slate-900">
-            Pilih Foto Sampul
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Pilih satu foto dari galeri untuk dijadikan sampul properti.
-          </p>
-          {galleryUrls.length ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {galleryUrls.map((url) => {
-                const selected = coverUrl === url;
-                return (
-                  <button
-                    key={url}
-                    type="button"
-                    onClick={() => setCoverUrl(url)}
-                    className={`group overflow-hidden rounded-2xl border text-left transition ${
-                      selected
-                        ? "border-emerald-400 ring-2 ring-emerald-200"
-                        : "border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="relative h-24 w-full overflow-hidden bg-slate-100">
-                      <img
-                        src={url}
-                        alt="Preview"
-                        className="h-full w-full object-cover transition group-hover:scale-105"
-                      />
-                    </div>
-                    <div className="px-3 py-2 text-xs text-slate-600">
-                      {selected ? "Sampul terpilih" : "Pilih jadi sampul"}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="mt-4 text-xs text-slate-400">
-              Upload galeri terlebih dahulu.
-            </p>
-          )}
-        </div>
-      </section>
-
-      {error ? (
-        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
-          {error}
-        </p>
-      ) : null}
-      {info ? (
-        <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
-          {info}
-        </p>
-      ) : null}
-
-      {!editingPropertyId ? (
-        <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/80 p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                Room Draft
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-900">
-                Atur room saat membuat properti
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={handleAddRoomDraft}
-              className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
-            >
-              Tambah Room Draft
-            </button>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">
-                Room type / name
-              </label>
-              <input
-                type="text"
-                value={roomName}
-                onChange={(event) => setRoomName(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Harga</label>
-              <input
-                type="number"
-                min={1}
-                value={roomPrice}
-                onChange={(event) => setRoomPrice(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium text-slate-700">
-                Deskripsi Room
-              </label>
-              <textarea
-                rows={3}
-                value={roomDescription}
-                onChange={(event) => setRoomDescription(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">
-                Total Unit
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={roomUnits}
-                onChange={(event) => setRoomUnits(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">
-                Maksimal Tamu
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={roomGuests}
-                onChange={(event) => setRoomGuests(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
-              />
-            </div>
-          </div>
-
-          {roomDrafts.length ? (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-slate-600">
-                Room draft yang akan dibuat
-              </p>
-              {roomDrafts.map((draft, index) => (
-                <div
-                  key={`${draft.name}-${index}`}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {draft.name}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {draft.description}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Rp {draft.price} • {draft.totalUnits} unit •{" "}
-                      {draft.maxGuests} tamu
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setRoomDrafts((prev) =>
-                        prev.filter((_, idx) => idx !== index),
-                      )
-                    }
-                    className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
-                  >
-                    Hapus
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500">
-              Belum ada room draft ditambahkan.
-            </p>
-          )}
-        </section>
-      ) : null}
-
-      <div className="flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-slate-500">
-          Field mengikuti struktur `Property` di Prisma schema.
-        </p>
-        <button
-          type="submit"
-          disabled={isSaving || isUploadingGallery}
-          className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-        >
-          {isSaving
-            ? "Menyimpan..."
-            : editingPropertyId
-              ? "Update Properti"
-              : "Simpan Properti"}
-        </button>
-      </div>
-      </form>
-      ) : null}
-
-      {showRoomManagement ? (
-        <section className="rounded-3xl border border-slate-200 bg-white/80 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-              Room Management
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-slate-900">
-              Kelola room untuk properti terpilih
+          <section className="space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
+              Informasi Utama
             </h2>
-          </div>
-          {editingRoomId ? (
-            <button
-              type="button"
-              onClick={resetRoomForm}
-              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700"
-            >
-              Batalkan edit room
-            </button>
-          ) : null}
-        </div>
-
-        {!selectedProperty ? (
-          <p className="mt-4 text-sm text-slate-500">
-            Pilih properti dari daftar di atas untuk mengelola room.
-          </p>
-        ) : (
-          <>
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-              Properti aktif:{" "}
-              <span className="font-semibold text-slate-900">
-                {selectedProperty.name}
-              </span>
-            </div>
-            <form className="mt-4 grid gap-4 md:grid-cols-2" onSubmit={handleRoomSubmit}>
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Room type / name
+                  Nama Properti
                 </label>
                 <input
                   type="text"
-                  value={roomName}
-                  onChange={(event) => setRoomName(event.target.value)}
-                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  placeholder="Contoh: Oceanview Serenity Villas"
+                  value={propertyName}
+                  onChange={(event) => setPropertyName(event.target.value)}
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Harga
+                  Kategori Properti (ID)
                 </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={roomPrice}
-                  onChange={(event) => setRoomPrice(event.target.value)}
-                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Cari kategori (min. 2 huruf) mis: Hotel, Villa"
+                    value={categoryQuery}
+                    onChange={(event) => {
+                      setCategoryQuery(event.target.value);
+                      setCategoryId("");
+                      setError("");
+                    }}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+                  />
+                  {categoryOptions.length ? (
+                    <div className="absolute z-10 mt-2 w-full rounded-2xl border border-slate-200 bg-white shadow-lg">
+                      {categoryOptions.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => {
+                            setCategoryId(option.id);
+                            setCategoryQuery(option.name);
+                            setCategoryOptions([]);
+                          }}
+                          className="flex w-full flex-col gap-1 border-b border-slate-100 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50 last:border-b-0"
+                        >
+                          <span className="font-semibold text-slate-900">
+                            {option.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                {categoryOptions.length === 0 &&
+                categoryQuery.trim().length < 2 ? (
+                  <div className="flex flex-wrap gap-2 text-xs text-slate-400">
+                    {CATEGORY_SUGGESTIONS.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          setCategoryQuery(item);
+                          setCategoryId("");
+                          setError("");
+                        }}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {isLoadingCategory ? (
+                  <p className="text-xs text-slate-400">Memuat kategori...</p>
+                ) : null}
+                {!isLoadingCategory &&
+                categoryQuery.trim().length >= 2 &&
+                categoryOptions.length === 0 ? (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-amber-600">
+                    <span>Kategori tidak ditemukan.</span>
+                    <button
+                      type="button"
+                      onClick={handleCreateCategory}
+                      disabled={isCreatingCategory}
+                      className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:text-amber-800"
+                    >
+                      {isCreatingCategory
+                        ? "Membuat..."
+                        : `Buat "${categoryQuery.trim()}"`}
+                    </button>
+                  </div>
+                ) : null}
+                {categoryMessage ? (
+                  <p className="text-xs text-slate-500">{categoryMessage}</p>
+                ) : null}
+                {categoryId ? (
+                  <p className="text-xs text-slate-500">
+                    ID terpilih: {categoryId}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    Pilih kategori milik tenant.
+                  </p>
+                )}
               </div>
-              <div className="space-y-2 md:col-span-2">
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Deskripsi Room
+                  Kota (City ID)
                 </label>
-                <textarea
-                  rows={3}
-                  value={roomDescription}
-                  onChange={(event) => setRoomDescription(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Cari kota (min. 2 huruf)"
+                    value={cityQuery}
+                    onChange={(event) => {
+                      setCityQuery(event.target.value);
+                      setCityId("");
+                      setError("");
+                    }}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+                  />
+                  {cityOptions.length ? (
+                    <div className="absolute z-10 mt-2 w-full rounded-2xl border border-slate-200 bg-white shadow-lg">
+                      {cityOptions.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => {
+                            setCityId(option.id);
+                            setCityQuery(
+                              option.province
+                                ? `${option.name}, ${option.province}`
+                                : option.name,
+                            );
+                            setCityOptions([]);
+                          }}
+                          className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50 last:border-b-0"
+                        >
+                          <span className="font-semibold text-slate-900">
+                            {option.name}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {option.province ?? "Indonesia"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                {isLoadingCity ? (
+                  <p className="text-xs text-slate-400">Memuat kota...</p>
+                ) : null}
+                {cityId ? (
+                  <p className="text-xs text-slate-500">
+                    ID terpilih: {cityId}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    Pilih kota dari daftar.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Total Unit
+                  Alamat (opsional)
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  value={roomUnits}
-                  onChange={(event) => setRoomUnits(event.target.value)}
-                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  type="text"
+                  placeholder="Alamat lengkap properti"
+                  value={propertyAddress}
+                  onChange={(event) => setPropertyAddress(event.target.value)}
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Maksimal Tamu
-                </label>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
+              Deskripsi Properti
+            </h2>
+            <textarea
+              rows={5}
+              placeholder="Tuliskan deskripsi properti, fasilitas utama, dan keunikan yang ditawarkan."
+              value={propertyDesc}
+              onChange={(event) => setPropertyDesc(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+            />
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Media Properti
+              </h2>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+                Cloudinary Signed Upload
+              </span>
+            </div>
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-slate-700">
+                Galeri Properti
+              </label>
+              <div className="flex flex-col gap-2">
                 <input
-                  type="number"
-                  min={1}
-                  value={roomGuests}
-                  onChange={(event) => setRoomGuests(event.target.value)}
-                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.gif,.webp"
+                  multiple
+                  onChange={(event) => handleGalleryUpload(event.target.files)}
+                  disabled={
+                    galleryUrls.length + stagedFiles.length >=
+                    MAX_GALLERY_IMAGES
+                  }
+                  className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800"
                 />
-              </div>
-              <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-slate-500">
-                  Field mengikuti struktur `RoomType` di Prisma schema.
+                <p className="text-xs text-slate-400">
+                  Unggah beberapa foto (maks {MAX_GALLERY_IMAGES}) dengan ukuran
+                  maks 5MB.
                 </p>
+              </div>
+              {stagedFiles.length ? (
+                <div className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+                  <p className="text-xs font-semibold text-slate-700">
+                    Staging foto (klik untuk hapus)
+                  </p>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                    {stagedFiles.map((item) => (
+                      <button
+                        key={item.previewUrl}
+                        type="button"
+                        onClick={() => handleRemoveStaged(item.previewUrl)}
+                        className="group relative overflow-hidden rounded-2xl border border-slate-200"
+                      >
+                        <img
+                          src={item.previewUrl}
+                          alt={item.file.name}
+                          className="h-24 w-full object-cover transition group-hover:scale-105"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-slate-900/40 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
+                          Hapus
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      Pastikan gambar sesuai ketentuan sebelum diupload.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleUploadStaged}
+                      disabled={isUploadingGallery || stagedFiles.length === 0}
+                      className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                    >
+                      {isUploadingGallery ? "Mengunggah..." : "Upload photo"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Pilih gambar untuk staging, lalu klik Upload photo.
+                </p>
+              )}
+              {galleryUrls.length ? (
+                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                  {galleryUrls.map((url) => (
+                    <div
+                      key={url}
+                      className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1"
+                    >
+                      <span>
+                        {url.length > 32 ? `${url.slice(0, 32)}...` : url}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = galleryUrls.filter(
+                            (item) => item !== url,
+                          );
+                          setGalleryUrls(next);
+                          if (coverUrl === url) {
+                            setCoverUrl(next[0] ?? "");
+                          }
+                        }}
+                        className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {isUploadingGallery ? (
+                <p className="text-xs text-slate-500">Mengunggah galeri...</p>
+              ) : null}
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white/80 p-4">
+              <p className="text-sm font-semibold text-slate-900">
+                Pilih Foto Sampul
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Pilih satu foto dari galeri untuk dijadikan sampul properti.
+              </p>
+              {galleryUrls.length ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {galleryUrls.map((url) => {
+                    const selected = coverUrl === url;
+                    return (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => setCoverUrl(url)}
+                        className={`group overflow-hidden rounded-2xl border text-left transition ${
+                          selected
+                            ? "border-emerald-400 ring-2 ring-emerald-200"
+                            : "border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="relative h-24 w-full overflow-hidden bg-slate-100">
+                          <img
+                            src={url}
+                            alt="Preview"
+                            className="h-full w-full object-cover transition group-hover:scale-105"
+                          />
+                        </div>
+                        <div className="px-3 py-2 text-xs text-slate-600">
+                          {selected ? "Sampul terpilih" : "Pilih jadi sampul"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-4 text-xs text-slate-400">
+                  Upload galeri terlebih dahulu.
+                </p>
+              )}
+            </div>
+          </section>
+
+          {error ? (
+            <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
+              {error}
+            </p>
+          ) : null}
+          {info ? (
+            <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
+              {info}
+            </p>
+          ) : null}
+
+          {!editingPropertyId ? (
+            <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/80 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    Room Draft
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold text-slate-900">
+                    Atur room saat membuat properti
+                  </h2>
+                </div>
                 <button
-                  type="submit"
-                  disabled={isSavingRoom}
-                  className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                  type="button"
+                  onClick={handleAddRoomDraft}
+                  className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  {isSavingRoom
-                    ? "Menyimpan..."
-                    : editingRoomId
-                      ? "Update Room"
-                      : "Tambah Room"}
+                  Tambah Room Draft
                 </button>
               </div>
-            </form>
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold text-slate-700">
-                Daftar room
-              </h3>
-              {selectedProperty.rooms.length ? (
-                <div className="mt-3 space-y-3">
-                  {selectedProperty.rooms.map((room) => (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Room type / name
+                  </label>
+                  <input
+                    type="text"
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Harga
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={roomPrice}
+                    onChange={(event) => setRoomPrice(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Deskripsi Room
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={roomDescription}
+                    onChange={(event) => setRoomDescription(event.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Total Unit
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={roomUnits}
+                    onChange={(event) => setRoomUnits(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Maksimal Tamu
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={roomGuests}
+                    onChange={(event) => setRoomGuests(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {roomDrafts.length ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-slate-600">
+                    Room draft yang akan dibuat
+                  </p>
+                  {roomDrafts.map((draft, index) => (
                     <div
-                      key={room.id}
+                      key={`${draft.name}-${index}`}
                       className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
                     >
                       <div>
                         <p className="text-sm font-semibold text-slate-900">
-                          {room.name}
+                          {draft.name}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {room.description}
+                          {draft.description}
                         </p>
                         <p className="text-xs text-slate-500">
-                          Rp {room.price} • {room.totalUnits} unit •{" "}
-                          {room.maxGuests} tamu
+                          Rp {draft.price} • {draft.totalUnits} unit •{" "}
+                          {draft.maxGuests} tamu
                         </p>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEditRoom(room)}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteRoom(room.id)}
-                          className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
-                        >
-                          Hapus
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRoomDrafts((prev) =>
+                            prev.filter((_, idx) => idx !== index),
+                          )
+                        }
+                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
+                      >
+                        Hapus
+                      </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="mt-3 text-sm text-slate-500">
-                  Belum ada room untuk properti ini.
+                <p className="text-xs text-slate-500">
+                  Belum ada room draft ditambahkan.
                 </p>
               )}
+            </section>
+          ) : null}
+
+          <div className="flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-500">
+              Field mengikuti struktur `Property` di Prisma schema.
+            </p>
+            <button
+              type="submit"
+              disabled={isSaving || isUploadingGallery}
+              className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+            >
+              {isSaving
+                ? "Menyimpan..."
+                : editingPropertyId
+                  ? "Update Properti"
+                  : "Simpan Properti"}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {showRoomManagement ? (
+        <section className="rounded-3xl border border-slate-200 bg-white/80 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Room Management
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900">
+                Kelola room untuk properti terpilih
+              </h2>
             </div>
-          </>
-        )}
-      </section>
+            {editingRoomId ? (
+              <button
+                type="button"
+                onClick={resetRoomForm}
+                className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700"
+              >
+                Batalkan edit room
+              </button>
+            ) : null}
+          </div>
+
+          {!selectedProperty ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Pilih properti dari daftar di atas untuk mengelola room.
+            </p>
+          ) : (
+            <>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                Properti aktif:{" "}
+                <span className="font-semibold text-slate-900">
+                  {selectedProperty.name}
+                </span>
+              </div>
+              <form
+                className="mt-4 grid gap-4 md:grid-cols-2"
+                onSubmit={handleRoomSubmit}
+              >
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Room type / name
+                  </label>
+                  <input
+                    type="text"
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Harga
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={roomPrice}
+                    onChange={(event) => setRoomPrice(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Deskripsi Room
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={roomDescription}
+                    onChange={(event) => setRoomDescription(event.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Total Unit
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={roomUnits}
+                    onChange={(event) => setRoomUnits(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Maksimal Tamu
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={roomGuests}
+                    onChange={(event) => setRoomGuests(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                  />
+                </div>
+                <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">
+                    Field mengikuti struktur `RoomType` di Prisma schema.
+                  </p>
+                  <button
+                    type="submit"
+                    disabled={isSavingRoom}
+                    className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                  >
+                    {isSavingRoom
+                      ? "Menyimpan..."
+                      : editingRoomId
+                        ? "Update Room"
+                        : "Tambah Room"}
+                  </button>
+                </div>
+              </form>
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold text-slate-700">
+                  Daftar room
+                </h3>
+                {selectedProperty.rooms.length ? (
+                  <div className="mt-3 space-y-3">
+                    {selectedProperty.rooms.map((room) => (
+                      <div
+                        key={room.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {room.name}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {room.description}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Rp {room.price} • {room.totalUnits} unit •{" "}
+                            {room.maxGuests} tamu
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEditRoom(room)}
+                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRoom(room.id)}
+                            className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">
+                    Belum ada room untuk properti ini.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </section>
       ) : null}
     </div>
   );

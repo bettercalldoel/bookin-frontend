@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiFetchWithHeaders } from "@/lib/api";
 import { isValidEmail } from "@/lib/validation";
-import { setAuthToken } from "@/lib/auth-client";
+import { extractTokenFromAuthHeader, setAuthToken } from "@/lib/auth-client";
 import GoogleSignInButton from "@/components/google-signin-button";
 
 type LoginResponse = {
-  accessToken: string;
   account: { type: "USER" | "TENANT" };
 };
 
@@ -40,13 +39,23 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const result = await apiFetch<LoginResponse>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email: trimmedEmail, password }),
-      });
+      const { data, headers } = await apiFetchWithHeaders<LoginResponse>(
+        "/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: trimmedEmail, password }),
+        },
+      );
 
-      setAuthToken(result.accessToken);
-      if (result.account.type === "TENANT") {
+      const token = extractTokenFromAuthHeader(
+        headers.get("authorization"),
+      );
+      if (!token) {
+        throw new Error("Token tidak ditemukan.");
+      }
+
+      setAuthToken(token);
+      if (data.account.type === "TENANT") {
         router.push("/tenant-dashboard");
       } else {
         router.push("/profile");

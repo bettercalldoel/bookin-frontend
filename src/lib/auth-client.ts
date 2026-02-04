@@ -22,3 +22,10 @@ export function getAuthToken() {
     .find((item) => item.startsWith(`${TOKEN_COOKIE}=`));
   return match ? match.split("=")[1] : null;
 }
+
+export function extractTokenFromAuthHeader(headerValue: string | null) {
+  if (!headerValue) return null;
+  const [scheme, token] = headerValue.split(" ");
+  if (!scheme || scheme.toLowerCase() !== "bearer" || !token) return null;
+  return token.trim() || null;
+}

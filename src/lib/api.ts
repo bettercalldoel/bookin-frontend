@@ -5,10 +5,13 @@ type ApiError = {
   message?: string;
 };
 
-export async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+type ApiFetchResult<T> = {
+  data: T;
+  headers: Headers;
+  status: number;
+};
+
+async function apiRequest<T>(path: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${path}`;
   const headers = new Headers(options.headers ?? {});
   if (!headers.has("Content-Type")) {
@@ -26,5 +29,21 @@ export async function apiFetch<T>(
     throw new Error(errorMessage);
   }
 
-  return data as T;
+  return { data: data as T, response };
+}
+
+export async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const { data } = await apiRequest<T>(path, options);
+  return data;
+}
+
+export async function apiFetchWithHeaders<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<ApiFetchResult<T>> {
+  const { data, response } = await apiRequest<T>(path, options);
+  return { data, headers: response.headers, status: response.status };
 }

@@ -16,6 +16,7 @@ function ConfirmResetForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [token, setToken] = useState("");
+  const [hasTokenFromUrl, setHasTokenFromUrl] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +25,10 @@ function ConfirmResetForm() {
 
   useEffect(() => {
     const tokenFromUrl = searchParams.get("token");
-    if (tokenFromUrl) setToken(tokenFromUrl);
+    if (tokenFromUrl) {
+      setToken(tokenFromUrl);
+      setHasTokenFromUrl(true);
+    }
   }, [searchParams]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -79,28 +83,27 @@ function ConfirmResetForm() {
                 <h1 className="mb-2 text-2xl font-bold text-slate-900">
                   Konfirmasi Reset Password
                 </h1>
-                <p className="text-sm text-slate-500">
-                  Masukkan token reset dan password baru Anda.
-                </p>
-                <div>
-                  <div className="mb-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Token Reset
-                    </label>
-                  </div>
-                  <div className="flex w-full rounded-lg pt-1">
-                    <div className="relative w-full">
-                      <input
-                        type="text"
-                        placeholder="Tempel token reset"
-                        value={token}
-                        onChange={(event) => setToken(event.target.value)}
-                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-                        required
-                      />
+                {!hasTokenFromUrl ? (
+                  <div>
+                    <div className="mb-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Token Reset
+                      </label>
+                    </div>
+                    <div className="flex w-full rounded-lg pt-1">
+                      <div className="relative w-full">
+                        <input
+                          type="text"
+                          placeholder="Tempel token reset"
+                          value={token}
+                          onChange={(event) => setToken(event.target.value)}
+                          className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
+                          required
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : null}
                 <div className="grid gap-3">
                   <div>
                     <div className="mb-2">

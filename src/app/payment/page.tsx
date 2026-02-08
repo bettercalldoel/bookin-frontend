@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 const formatIDR = (value: string) => {
@@ -13,6 +14,14 @@ const formatIDR = (value: string) => {
 };
 
 export default function PaymentPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentContent />
+    </Suspense>
+  );
+}
+
+function PaymentContent() {
   const searchParams = useSearchParams();
   const orderNo = searchParams.get("orderNo") ?? "";
   const total = searchParams.get("total") ?? "";

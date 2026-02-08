@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
 
@@ -270,13 +271,16 @@ type TenantPropertyFormProps = {
   showManagement?: boolean;
   showForm?: boolean;
   showRoomManagement?: boolean;
+  redirectOnCreateTo?: string;
 };
 
 export default function TenantPropertyForm({
   showManagement = true,
   showForm = true,
   showRoomManagement = true,
+  redirectOnCreateTo,
 }: TenantPropertyFormProps) {
+  const router = useRouter();
   const [propertyName, setPropertyName] = useState("");
   const [propertyDesc, setPropertyDesc] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
@@ -316,6 +320,12 @@ export default function TenantPropertyForm({
   const [roomGuests, setRoomGuests] = useState("");
   const [roomDrafts, setRoomDrafts] = useState<RoomDraft[]>([]);
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [roomDraftMode, setRoomDraftMode] = useState<"FULL" | "PARTIAL">(
+    "PARTIAL",
+  );
+  const [isSelectingCover, setIsSelectingCover] = useState(false);
+  const [showCoverSuccessPopup, setShowCoverSuccessPopup] = useState(false);
+  const coverSuccessTimerRef = useRef<number | null>(null);
 
   const selectedProperty = useMemo(
     () => properties.find((item) => item.id === selectedPropertyId) ?? null,
@@ -353,12 +363,21 @@ export default function TenantPropertyForm({
 
   useEffect(() => {
     if (!galleryUrls.length) {
+      setIsSelectingCover(false);
       setCoverUrl("");
       return;
     }
     if (coverUrl && galleryUrls.includes(coverUrl)) return;
     setCoverUrl(galleryUrls[0]);
   }, [galleryUrls, coverUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (coverSuccessTimerRef.current) {
+        window.clearTimeout(coverSuccessTimerRef.current);
+      }
+    };
+  }, []);
 
   const loadProperties = async () => {
     setIsLoadingProperties(true);
@@ -526,6 +545,32 @@ export default function TenantPropertyForm({
     });
   };
 
+  const showCoverSuccessMessage = () => {
+    setShowCoverSuccessPopup(true);
+    if (coverSuccessTimerRef.current) {
+      window.clearTimeout(coverSuccessTimerRef.current);
+    }
+    coverSuccessTimerRef.current = window.setTimeout(() => {
+      setShowCoverSuccessPopup(false);
+      coverSuccessTimerRef.current = null;
+    }, 1800);
+  };
+
+  const handleSelectCoverFromGallery = (url: string) => {
+    if (!isSelectingCover) return;
+    setCoverUrl(url);
+    setIsSelectingCover(false);
+    showCoverSuccessMessage();
+  };
+
+  const handleRemoveGalleryImage = (url: string) => {
+    const next = galleryUrls.filter((item) => item !== url);
+    setGalleryUrls(next);
+    if (coverUrl === url) {
+      setCoverUrl(next[0] ?? "");
+    }
+  };
+
   const handleCreateCategory = async () => {
     const name = categoryQuery.trim();
     if (name.length < 2) {
@@ -552,9 +597,15 @@ export default function TenantPropertyForm({
   };
 
   const resetPropertyForm = () => {
+    if (coverSuccessTimerRef.current) {
+      window.clearTimeout(coverSuccessTimerRef.current);
+      coverSuccessTimerRef.current = null;
+    }
     setPropertyName("");
     setPropertyDesc("");
     setPropertyAddress("");
+    setIsSelectingCover(false);
+    setShowCoverSuccessPopup(false);
     setCoverUrl("");
     setGalleryUrls([]);
     setCategoryQuery("");
@@ -586,21 +637,53 @@ export default function TenantPropertyForm({
     setRoomGuests("");
   };
 
+  const handleRoomDraftModeChange = (mode: "FULL" | "PARTIAL") => {
+    setRoomDraftMode(mode);
+    setRoomDrafts([]);
+    resetRoomDraftForm();
+  };
+
+  const buildFullPropertyDraft = (): RoomDraft => ({
+    name: propertyName.trim()
+      ? `${propertyName.trim()} · Properti Utuh`
+      : "Properti Utuh",
+    description: roomDescription.trim(),
+    price: roomPrice.trim(),
+    totalUnits: "1",
+    maxGuests: roomGuests.trim(),
+  });
+
   const handleAddRoomDraft = () => {
     setError("");
     setInfo("");
-    if (!roomName.trim() || !roomDescription.trim()) {
-      setError("Nama dan deskripsi room wajib diisi.");
+    if (!roomDescription.trim()) {
+      setError("Deskripsi room wajib diisi.");
       return;
     }
     if (!roomPrice.trim()) {
       setError("Harga room wajib diisi.");
       return;
     }
-    if (!roomUnits.trim() || !roomGuests.trim()) {
-      setError("Total unit dan maksimal tamu wajib diisi.");
+    if (!roomGuests.trim()) {
+      setError("Maksimal tamu wajib diisi.");
       return;
     }
+
+    if (roomDraftMode === "FULL") {
+      const draft = buildFullPropertyDraft();
+      setRoomDrafts([draft]);
+      return;
+    }
+
+    if (!roomName.trim()) {
+      setError("Nama room wajib diisi.");
+      return;
+    }
+    if (!roomUnits.trim()) {
+      setError("Total unit wajib diisi.");
+      return;
+    }
+
     setRoomDrafts((prev) => [
       ...prev,
       {
@@ -695,6 +778,15 @@ export default function TenantPropertyForm({
       return;
     }
 
+    let draftsToCreate = roomDrafts;
+    if (!editingPropertyId && roomDraftMode === "FULL") {
+      if (!roomDescription.trim() || !roomPrice.trim() || !roomGuests.trim()) {
+        setError("Lengkapi harga, maksimal tamu, dan deskripsi room.");
+        return;
+      }
+      draftsToCreate = [buildFullPropertyDraft()];
+    }
+
     const token = getAuthToken();
     if (!token) {
       setError("Unauthorized.");
@@ -713,6 +805,7 @@ export default function TenantPropertyForm({
         galleryUrls,
       };
 
+      const isCreating = !editingPropertyId;
       const result = editingPropertyId
         ? await updatePropertyRequest(editingPropertyId, payload)
         : await apiFetch<{ message: string; id: string }>("/properties", {
@@ -723,8 +816,8 @@ export default function TenantPropertyForm({
             body: JSON.stringify(payload),
           });
 
-      if (!editingPropertyId && roomDrafts.length > 0) {
-        for (const draft of roomDrafts) {
+      if (!editingPropertyId && draftsToCreate.length > 0) {
+        for (const draft of draftsToCreate) {
           await createRoomRequest(result.id, {
             name: draft.name,
             description: draft.description,
@@ -738,6 +831,10 @@ export default function TenantPropertyForm({
       setInfo(result.message);
       if (showManagement || showRoomManagement) {
         await loadProperties();
+      }
+      if (isCreating && redirectOnCreateTo) {
+        router.push(redirectOnCreateTo);
+        return;
       }
       if (editingPropertyId) {
         setEditingPropertyId(null);
@@ -835,6 +932,22 @@ export default function TenantPropertyForm({
 
   return (
     <div className="mt-8 space-y-10">
+      {showCoverSuccessPopup ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-6">
+          <div className="w-full max-w-sm rounded-2xl border border-emerald-200 bg-white px-6 py-5 text-center shadow-2xl">
+            <p className="text-sm font-semibold text-emerald-700">
+              Foto berhasil dijadikan sampul.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCoverSuccessPopup(false)}
+              className="mt-4 w-full rounded-full border border-emerald-200 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      ) : null}
       {showManagement ? (
         <section className="rounded-3xl border border-slate-200 bg-white/80 p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1193,79 +1306,76 @@ export default function TenantPropertyForm({
                 </p>
               )}
               {galleryUrls.length ? (
-                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                  {galleryUrls.map((url) => (
-                    <div
-                      key={url}
-                      className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1"
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs font-semibold text-slate-700">
+                      Galeri yang sudah diunggah
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsSelectingCover((prev) => !prev)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        isSelectingCover
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900"
+                      }`}
                     >
-                      <span>
-                        {url.length > 32 ? `${url.slice(0, 32)}...` : url}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = galleryUrls.filter(
-                            (item) => item !== url,
-                          );
-                          setGalleryUrls(next);
-                          if (coverUrl === url) {
-                            setCoverUrl(next[0] ?? "");
-                          }
-                        }}
-                        className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  ))}
+                      {isSelectingCover
+                        ? "Batalkan pilih sampul"
+                        : "Pilih foto sampul"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {isSelectingCover
+                      ? "Klik foto di galeri untuk dijadikan sampul."
+                      : "Gunakan tombol pilih foto sampul lalu klik foto galeri."}
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {galleryUrls.map((url, index) => {
+                      const selected = coverUrl === url;
+                      return (
+                        <div key={url} className="relative">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectCoverFromGallery(url)}
+                            className={`group relative w-full overflow-hidden rounded-2xl border text-left transition ${
+                              selected
+                                ? "border-emerald-400 ring-2 ring-emerald-200"
+                                : "border-slate-200 hover:border-slate-300"
+                            } ${isSelectingCover ? "" : "cursor-default"}`}
+                          >
+                            <img
+                              src={url}
+                              alt={`Galeri properti ${index + 1}`}
+                              className="h-28 w-full object-cover transition group-hover:scale-105"
+                            />
+                            {selected ? (
+                              <span className="absolute left-2 top-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                Sampul
+                              </span>
+                            ) : null}
+                            {isSelectingCover ? (
+                              <span className="absolute inset-x-2 bottom-2 rounded-full bg-slate-900/70 px-2 py-1 text-center text-[10px] font-semibold text-white">
+                                Klik jadikan sampul
+                              </span>
+                            ) : null}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryImage(url)}
+                            className="absolute right-2 top-2 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : null}
               {isUploadingGallery ? (
                 <p className="text-xs text-slate-500">Mengunggah galeri...</p>
               ) : null}
-            </div>
-            <div className="rounded-3xl border border-slate-200 bg-white/80 p-4">
-              <p className="text-sm font-semibold text-slate-900">
-                Pilih Foto Sampul
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Pilih satu foto dari galeri untuk dijadikan sampul properti.
-              </p>
-              {galleryUrls.length ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  {galleryUrls.map((url) => {
-                    const selected = coverUrl === url;
-                    return (
-                      <button
-                        key={url}
-                        type="button"
-                        onClick={() => setCoverUrl(url)}
-                        className={`group overflow-hidden rounded-2xl border text-left transition ${
-                          selected
-                            ? "border-emerald-400 ring-2 ring-emerald-200"
-                            : "border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="relative h-24 w-full overflow-hidden bg-slate-100">
-                          <img
-                            src={url}
-                            alt="Preview"
-                            className="h-full w-full object-cover transition group-hover:scale-105"
-                          />
-                        </div>
-                        <div className="px-3 py-2 text-xs text-slate-600">
-                          {selected ? "Sampul terpilih" : "Pilih jadi sampul"}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="mt-4 text-xs text-slate-400">
-                  Upload galeri terlebih dahulu.
-                </p>
-              )}
             </div>
           </section>
 
@@ -1296,21 +1406,44 @@ export default function TenantPropertyForm({
                   onClick={handleAddRoomDraft}
                   className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Tambah Room Draft
+                  {roomDraftMode === "FULL" ? "Simpan Room" : "Tambah Room Draft"}
                 </button>
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Tipe sewa properti
+                </label>
+                <select
+                  value={roomDraftMode}
+                  onChange={(event) =>
+                    handleRoomDraftModeChange(
+                      event.target.value as "FULL" | "PARTIAL",
+                    )
+                  }
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                >
+                  <option value="FULL">
+                    Properti ini disewakan secara menyeluruh
+                  </option>
+                  <option value="PARTIAL">
+                    Properti ini bisa disewakan sebagian saja
+                  </option>
+                </select>
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">
-                    Room type / name
-                  </label>
-                  <input
-                    type="text"
-                    value={roomName}
-                    onChange={(event) => setRoomName(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
-                  />
-                </div>
+                {roomDraftMode === "PARTIAL" ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">
+                      Room type / name
+                    </label>
+                    <input
+                      type="text"
+                      value={roomName}
+                      onChange={(event) => setRoomName(event.target.value)}
+                      className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                    />
+                  </div>
+                ) : null}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">
                     Harga
@@ -1339,18 +1472,6 @@ export default function TenantPropertyForm({
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">
-                    Total Unit
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={roomUnits}
-                    onChange={(event) => setRoomUnits(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">
                     Maksimal Tamu
                   </label>
                   <input
@@ -1361,49 +1482,65 @@ export default function TenantPropertyForm({
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
                   />
                 </div>
+                {roomDraftMode === "PARTIAL" ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">
+                      Total Unit
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={roomUnits}
+                      onChange={(event) => setRoomUnits(event.target.value)}
+                      className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                    />
+                  </div>
+                ) : null}
               </div>
 
-              {roomDrafts.length ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-slate-600">
-                    Room draft yang akan dibuat
-                  </p>
-                  {roomDrafts.map((draft, index) => (
-                    <div
-                      key={`${draft.name}-${index}`}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {draft.name}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {draft.description}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {formatIDR(draft.price)} • {draft.totalUnits} unit •{" "}
-                          {draft.maxGuests} tamu
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setRoomDrafts((prev) =>
-                            prev.filter((_, idx) => idx !== index),
-                          )
-                        }
-                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
+              {roomDraftMode === "PARTIAL" ? (
+                roomDrafts.length ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-slate-600">
+                      Room draft yang akan dibuat
+                    </p>
+                    {roomDrafts.map((draft, index) => (
+                      <div
+                        key={`${draft.name}-${index}`}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
                       >
-                        Hapus
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500">
-                  Belum ada room draft ditambahkan.
-                </p>
-              )}
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {draft.name}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {draft.description}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {formatIDR(draft.price)} • {draft.totalUnits} unit •{" "}
+                            {draft.maxGuests} tamu
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRoomDrafts((prev) =>
+                              prev.filter((_, idx) => idx !== index),
+                            )
+                          }
+                          className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:text-rose-800"
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Belum ada room draft ditambahkan.
+                  </p>
+                )
+              ) : null}
             </section>
           ) : null}
 

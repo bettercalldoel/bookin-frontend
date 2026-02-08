@@ -42,11 +42,26 @@ const formatIDR = (value: string | number) => {
   }).format(parsed);
 };
 
+const formatIDRPlain = (value: string | number) => {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(parsed)) return value;
+  return new Intl.NumberFormat("id-ID", {
+    maximumFractionDigits: 0,
+  }).format(parsed);
+};
+
 const formatDate = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+
+const formatDisplayDate = (value: string) => {
+  if (!value) return "DD-MM-YYYY";
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return "DD-MM-YYYY";
+  return `${day}-${month}-${year}`;
 };
 
 const addDays = (date: Date, days: number) => {
@@ -272,12 +287,12 @@ export default function ListingDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900">
+      <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/70 blur-3xl" />
+      <div className="pointer-events-none absolute left-0 top-1/2 h-80 w-80 -translate-y-1/2 rounded-full bg-sky-200/70 blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 bg-grid-slate" />
       <section className="relative overflow-hidden bg-linear-to-br from-slate-950 via-slate-900 to-teal-950 px-6 py-14 text-white">
         <div className="mx-auto w-full max-w-6xl space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-teal-200">
-            Detail properti
-          </p>
           <h1 className="text-3xl font-semibold sm:text-4xl">
             {data?.name ?? "Memuat properti..."}
           </h1>
@@ -291,7 +306,7 @@ export default function ListingDetailPage() {
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12">
         {loading && (
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+          <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-6 text-sm text-slate-500 shadow-xl shadow-slate-200/70">
             Memuat detail properti...
           </div>
         )}
@@ -319,7 +334,7 @@ export default function ListingDetailPage() {
                   ))}
                 </div>
               </div>
-              <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-100">
+              <div className="space-y-5 rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-6 shadow-2xl shadow-slate-200/70">
                 <div className="space-y-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
                     Booking
@@ -349,24 +364,26 @@ export default function ListingDetailPage() {
                   </select>
                 </label>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                         Pilih tanggal
                       </p>
                       <p className="text-sm font-semibold text-slate-900">
-                        {checkIn ? checkIn : "Check-in"}{" "}
-                        {checkOut ? `-> ${checkOut}` : ""}
+                        Check In {formatDisplayDate(checkIn)} → Check Out{" "}
+                        {formatDisplayDate(checkOut)}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowCalendar((prev) => !prev)}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
-                    >
-                      {showCalendar ? "Tutup kalender" : "Pilih tanggal"}
-                    </button>
+                    {!showCalendar && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCalendar(true)}
+                        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
+                      >
+                        Pilih tanggal
+                      </button>
+                    )}
                   </div>
 
                   {showCalendar && (
@@ -382,8 +399,22 @@ export default function ListingDetailPage() {
                         </p>
                       )}
                       {availability && (
-                        <div className="space-y-2">
-                          <div className="grid grid-cols-7 gap-2 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                            <span className="inline-flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full border border-slate-200 bg-white" />
+                              Tersedia
+                            </span>
+                            <span className="inline-flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full bg-teal-600" />
+                              Dipilih
+                            </span>
+                            <span className="inline-flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />
+                              Tidak tersedia
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-7 gap-2 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">
                             {weekdayLabels.map((day) => (
                               <div key={day}>{day}</div>
                             ))}
@@ -410,26 +441,50 @@ export default function ListingDetailPage() {
                                   type="button"
                                   onClick={() => handleDateClick(item)}
                                   disabled={isDisabled}
-                                  className={`rounded-xl border px-2 py-2 text-left text-[11px] transition ${
+                                  className={`flex h-14 flex-col items-center justify-center rounded-2xl border text-xs font-semibold transition ${
                                     isDisabled
                                       ? "border-slate-200 bg-slate-100 text-slate-400"
-                                      : inRange
-                                        ? "border-teal-500 bg-teal-600 text-white"
-                                        : "border-slate-200 bg-white text-slate-600 hover:border-teal-400"
-                                  } ${isStart || isEnd ? "ring-2 ring-teal-200" : ""}`}
+                                      : isStart || isEnd
+                                        ? "border-teal-600 bg-teal-600 text-white"
+                                        : inRange
+                                          ? "border-teal-200 bg-teal-50 text-teal-700"
+                                          : "border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:bg-teal-50"
+                                  }`}
                                 >
-                                  <p className="text-[10px] font-semibold">
+                                  <span className="text-sm font-semibold">
                                     {item.date.split("-")[2]}
-                                  </p>
-                                  <p className="text-[10px]">
-                                    {formatIDR(item.finalPrice)}
-                                  </p>
+                                  </span>
+                                  <span
+                                    className={`text-[9px] font-medium ${
+                                      isDisabled
+                                        ? "text-slate-400"
+                                        : isStart || isEnd
+                                          ? "text-white/80"
+                                          : inRange
+                                            ? "text-teal-700"
+                                            : "text-slate-500"
+                                    }`}
+                                  >
+                                    {isDisabled ? "Penuh" : formatIDRPlain(item.finalPrice)}
+                                  </span>
                                 </button>
                               );
                             })}
                           </div>
+                          <p className="text-[10px] text-slate-400">
+                            Harga dalam Rupiah (IDR).
+                          </p>
                         </div>
                       )}
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setShowCalendar(false)}
+                          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
+                        >
+                          Tutup kalender
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -503,10 +558,10 @@ export default function ListingDetailPage() {
                   type="button"
                   onClick={handleBooking}
                   disabled={!canBook}
-                  className={`w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white transition ${
+                  className={`w-full rounded-full px-6 py-3 text-sm font-semibold text-white shadow-sm transition ${
                     canBook
                       ? "bg-slate-900 hover:bg-slate-800"
-                      : "bg-slate-300"
+                      : "bg-slate-300 text-slate-600"
                   }`}
                 >
                   Booking sekarang
@@ -516,8 +571,8 @@ export default function ListingDetailPage() {
 
             <section className="grid gap-6 lg:grid-cols-[1fr_320px]">
               <div className="space-y-6">
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-100">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-6 shadow-xl shadow-slate-200/70">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
                     Fasilitas utama
                   </p>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -531,7 +586,7 @@ export default function ListingDetailPage() {
                     ].map((item) => (
                       <div
                         key={item}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600"
+                        className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm text-slate-600"
                       >
                         {item}
                       </div>
@@ -539,15 +594,15 @@ export default function ListingDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-100">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-6 shadow-xl shadow-slate-200/70">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
                     Pilihan room
                   </p>
                   <div className="mt-4 grid gap-4">
                     {data.rooms.map((room) => (
                       <div
                         key={room.id}
-                        className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 md:flex-row md:items-center md:justify-between"
+                        className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/80 p-4 md:flex-row md:items-center md:justify-between"
                       >
                         <div>
                           <p className="text-lg font-semibold text-slate-900">
@@ -576,17 +631,17 @@ export default function ListingDetailPage() {
               </div>
 
               <aside className="space-y-4">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-100">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-5 shadow-xl shadow-slate-200/70">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
                     Informasi lokasi
                   </p>
                   <p className="mt-3 text-sm text-slate-600">
                     {locationText}
                   </p>
-                  <div className="mt-4 h-44 rounded-2xl bg-linear-to-br from-slate-200 to-slate-100" />
+                  <div className="mt-4 h-44 rounded-2xl bg-linear-to-br from-slate-100 via-white to-slate-200" />
                 </div>
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-100">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-5 shadow-xl shadow-slate-200/70">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
                     Highlight
                   </p>
                   <ul className="mt-3 space-y-2 text-sm text-slate-600">

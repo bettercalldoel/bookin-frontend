@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
@@ -50,6 +50,14 @@ type AvailabilityResponse = {
 };
 
 export default function BookingConfirmationPage() {
+  return (
+    <Suspense fallback={null}>
+      <BookingConfirmationContent />
+    </Suspense>
+  );
+}
+
+function BookingConfirmationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const propertyId = searchParams.get("propertyId") ?? "";

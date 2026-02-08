@@ -89,7 +89,7 @@ export default function BookingPage() {
     rooms: 1,
   });
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): Record<string, string> => {
     const token = getAuthToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
   };

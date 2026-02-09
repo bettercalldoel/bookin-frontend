@@ -182,6 +182,7 @@ function BookingConfirmationContent() {
         throw new Error(payload.message || "Gagal membuat booking.");
       }
       const params = new URLSearchParams({
+        bookingId: payload.id ?? "",
         orderNo: payload.orderNo ?? "",
         total: payload.totalAmount ?? "",
         paymentDueAt: payload.paymentDueAt ?? "",

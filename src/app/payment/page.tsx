@@ -1,7 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
+import { getAuthToken } from "@/lib/auth-client";
 
 const formatIDR = (value: string) => {
   const parsed = Number(value);
@@ -11,6 +13,15 @@ const formatIDR = (value: string) => {
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(parsed);
+};
+
+const formatDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 };
 
 export default function PaymentPage() {
@@ -23,6 +34,7 @@ export default function PaymentPage() {
 
 function PaymentContent() {
   const searchParams = useSearchParams();
+  const bookingId = searchParams.get("bookingId") ?? "";
   const orderNo = searchParams.get("orderNo") ?? "";
   const total = searchParams.get("total") ?? "";
   const paymentDueAt = searchParams.get("paymentDueAt") ?? "";
@@ -30,6 +42,70 @@ function PaymentContent() {
   const roomName = searchParams.get("roomName") ?? "";
   const checkIn = searchParams.get("checkIn") ?? "";
   const checkOut = searchParams.get("checkOut") ?? "";
+
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+
+  const canUpload = Boolean(bookingId && proofFile && !uploading);
+
+  const handleUploadProof = async () => {
+    if (!bookingId) {
+      setUploadError("Booking ID tidak ditemukan. Ulangi dari halaman konfirmasi.");
+      return;
+    }
+    if (!proofFile) {
+      setUploadError("Pilih file bukti transfer terlebih dahulu.");
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      setUploadError("Silakan login kembali untuk upload bukti transfer.");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadError(null);
+      setUploadSuccess(null);
+
+      const formData = new FormData();
+      formData.append("proof", proofFile);
+
+      const response = await fetch(
+        `${API_BASE_URL}/bookings/${bookingId}/payment-proof`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        },
+      );
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        message?: string;
+        imageUrl?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message || "Gagal upload bukti pembayaran.");
+      }
+
+      setUploadSuccess(payload.message || "Bukti pembayaran berhasil diupload.");
+      setUploadedImageUrl(payload.imageUrl ?? null);
+      setProofFile(null);
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Gagal upload bukti pembayaran.",
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-12">
@@ -63,7 +139,7 @@ function PaymentContent() {
           <div className="flex items-center justify-between">
             <span>Batas pembayaran</span>
             <span className="font-semibold text-slate-900">
-              {paymentDueAt || "-"}
+              {paymentDueAt ? formatDateTime(paymentDueAt) : "-"}
             </span>
           </div>
         </div>
@@ -71,9 +147,76 @@ function PaymentContent() {
           <p className="font-semibold text-slate-900">Instruksi pembayaran</p>
           <ul className="mt-2 list-disc pl-4 text-sm text-slate-600">
             <li>Transfer sesuai total ke rekening yang ditentukan.</li>
-            <li>Unggah bukti pembayaran di halaman booking.</li>
-            <li>Booking akan diproses setelah pembayaran terverifikasi.</li>
+            <li>Upload bukti transfer di bawah ini.</li>
+            <li>Booking akan diproses setelah pembayaran terverifikasi tenant.</li>
           </ul>
+        </div>
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              Upload Bukti Transfer
+            </p>
+            <p className="text-xs text-slate-500">
+              Format: JPG/JPEG/PNG, maksimal 1MB.
+            </p>
+          </div>
+
+          {!bookingId ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              Booking ID tidak tersedia. Ulangi proses dari halaman konfirmasi
+              booking.
+            </div>
+          ) : (
+            <>
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setProofFile(nextFile);
+                  setUploadError(null);
+                  setUploadSuccess(null);
+                }}
+                className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+              />
+              {proofFile ? (
+                <p className="text-xs text-slate-500">File: {proofFile.name}</p>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleUploadProof}
+                disabled={!canUpload}
+                className={`rounded-2xl px-4 py-2 text-sm font-semibold text-white transition ${
+                  canUpload ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300"
+                }`}
+              >
+                {uploading ? "Mengunggah..." : "Upload Bukti Pembayaran"}
+              </button>
+            </>
+          )}
+
+          {uploadError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {uploadError}
+            </div>
+          ) : null}
+
+          {uploadSuccess ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {uploadSuccess}
+            </div>
+          ) : null}
+
+          {uploadedImageUrl ? (
+            <a
+              href={uploadedImageUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              Lihat file yang diupload
+            </a>
+          ) : null}
         </div>
       </div>
     </div>

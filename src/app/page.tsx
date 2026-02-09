@@ -322,12 +322,29 @@ export default function Home() {
                           right: menuPosition.right,
                         }}
                       >
-                        <a
-                          href={isTenant ? "/tenant-dashboard" : "/profile"}
-                          className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Kelola akun
-                        </a>
+                        {isTenant ? (
+                          <a
+                            href="/tenant-dashboard"
+                            className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Dashboard Tenant
+                          </a>
+                        ) : (
+                          <>
+                            <a
+                              href="/profile"
+                              className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                              My Profile
+                            </a>
+                            <a
+                              href="/my-transaction"
+                              className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                              My Transaction
+                            </a>
+                          </>
+                        )}
                         <button
                           type="button"
                           onClick={handleLogout}
@@ -391,17 +408,45 @@ export default function Home() {
         </nav>
         <div className="mt-6">
           {userName ? (
-            <div className="flex w-full items-center gap-2">
-              <div className="flex-1 rounded-full bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white">
+            <div className="space-y-2">
+              <div className="rounded-full bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white">
                 Hello, {userName}
               </div>
+
+              {isTenant ? (
+                <a
+                  href="/tenant-dashboard"
+                  onClick={handleCloseSidebar}
+                  className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                >
+                  Dashboard Tenant
+                </a>
+              ) : (
+                <>
+                  <a
+                    href="/profile"
+                    onClick={handleCloseSidebar}
+                    className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    My Profile
+                  </a>
+                  <a
+                    href="/my-transaction"
+                    onClick={handleCloseSidebar}
+                    className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    My Transaction
+                  </a>
+                </>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
                   handleCloseSidebar();
                   handleLogout();
                 }}
-                className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                className="w-full rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
               >
                 Logout
               </button>

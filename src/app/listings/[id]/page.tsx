@@ -247,6 +247,17 @@ export default function ListingDetailPage() {
     !guestExceedsCapacity &&
     rangeAvailable;
 
+  const bookingHelperText = useMemo(() => {
+    if (!selectedRoomId) return "Pilih kamar terlebih dahulu.";
+    if (!checkIn || !checkOut)
+      return "Pilih tanggal check-in dan check-out untuk lanjut booking.";
+    if (guestExceedsCapacity && selectedRoom)
+      return `Jumlah tamu melebihi kapasitas kamar (${selectedRoom.maxGuests} tamu).`;
+    if (!rangeAvailable)
+      return "Rentang tanggal yang dipilih tidak tersedia penuh. Pilih tanggal lain.";
+    return "Data booking sudah valid. Klik tombol untuk lanjut konfirmasi.";
+  }, [checkIn, checkOut, guestExceedsCapacity, rangeAvailable, selectedRoom, selectedRoomId]);
+
   const handleDateClick = (item: AvailabilityItem) => {
     if (item.isClosed || item.availableUnits <= 0) return;
     if (!checkIn || (checkIn && checkOut)) {
@@ -558,14 +569,21 @@ export default function ListingDetailPage() {
                   type="button"
                   onClick={handleBooking}
                   disabled={!canBook}
-                  className={`w-full rounded-full px-6 py-3 text-sm font-semibold text-white shadow-sm transition ${
+                  className={`w-full rounded-full border px-6 py-3 text-sm font-semibold shadow-sm transition ${
                     canBook
-                      ? "bg-slate-900 hover:bg-slate-800"
-                      : "bg-slate-300 text-slate-600"
+                      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                      : "cursor-not-allowed border-slate-300 bg-slate-100 text-slate-500"
                   }`}
                 >
-                  Booking sekarang
+                  {canBook ? "Booking sekarang" : "Lengkapi data booking"}
                 </button>
+                <p
+                  className={`text-xs ${
+                    canBook ? "text-emerald-700" : "text-slate-500"
+                  }`}
+                >
+                  {bookingHelperText}
+                </p>
               </div>
             </section>
 

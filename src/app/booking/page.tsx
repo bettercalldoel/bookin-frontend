@@ -1,21 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
 
 /* ======================
  * Types (ERD-aligned)
  * ====================== */
+type BookingStatus =
+  | "MENUNGGU_PEMBAYARAN"
+  | "MENUNGGU_KONFIRMASI_PEMBAYARAN"
+  | "DIPROSES"
+  | "DIBATALKAN"
+  | "SELESAI";
+
 interface Booking {
   id: string;
   orderNo: string;
   checkIn: string;
   checkOut: string;
   guests: number;
-  units: number;
+  rooms: number;
   totalAmount: number | string;
-  status: string;
+  status: BookingStatus;
   createdAt: string;
 }
 
@@ -67,11 +74,40 @@ const formatIDR = (value: string | number) => {
   }).format(parsed);
 };
 
+const formatDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+};
+
+const formatBookingStatus = (status: BookingStatus) => {
+  switch (status) {
+    case "MENUNGGU_PEMBAYARAN":
+      return "Menunggu Pembayaran";
+    case "MENUNGGU_KONFIRMASI_PEMBAYARAN":
+      return "Menunggu Konfirmasi Pembayaran";
+    case "DIPROSES":
+      return "Diproses";
+    case "DIBATALKAN":
+      return "Dibatalkan";
+    case "SELESAI":
+      return "Selesai";
+    default:
+      return status;
+  }
+};
+
 /* ======================
  * Page Component
  * ====================== */
 export default function BookingPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsError, setBookingsError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -112,8 +148,12 @@ export default function BookingPage() {
   /* ======================
    * Fetch bookings
    * ====================== */
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async (silent = false) => {
+    if (!silent) {
+      setBookingsLoading(true);
+    }
     try {
+      setBookingsError(null);
       const res = await fetch(`${API_BASE_URL}/bookings`, {
         headers: {
           ...getAuthHeaders(),
@@ -124,10 +164,18 @@ export default function BookingPage() {
       }
       const json = await res.json();
       setBookings(json.data ?? []);
+      setLastSyncedAt(new Date().toISOString());
     } catch (err) {
+      setBookingsError(
+        err instanceof Error ? err.message : "Gagal memuat booking.",
+      );
       setBookings([]);
+    } finally {
+      if (!silent) {
+        setBookingsLoading(false);
+      }
     }
-  };
+  }, []);
 
   const fetchOptions = async () => {
     try {
@@ -159,6 +207,15 @@ export default function BookingPage() {
     fetchBookings();
     fetchOptions();
   }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      fetchBookings(true);
+    }, 15000);
+
+    return () => window.clearInterval(timer);
+  }, [fetchBookings]);
 
   useEffect(() => {
     setPreview(null);
@@ -225,7 +282,7 @@ export default function BookingPage() {
         throw new Error(payload.message || "Gagal membuat booking");
       }
 
-      await fetchBookings();
+      await fetchBookings(true);
       alert("Booking created");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error creating booking");
@@ -405,9 +462,28 @@ export default function BookingPage() {
        * Booking List
        * ====================== */}
       <section>
-        <h2>My Bookings</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h2>My Bookings</h2>
+          <button
+            type="button"
+            onClick={() => fetchBookings()}
+            disabled={bookingsLoading}
+          >
+            {bookingsLoading ? "Refreshing..." : "Refresh status"}
+          </button>
+        </div>
 
-        {bookings.length === 0 && <p>No bookings yet</p>}
+        {lastSyncedAt && (
+          <p style={{ fontSize: 12, color: "#718096" }}>
+            Last sync: {formatDateTime(lastSyncedAt)}
+          </p>
+        )}
+
+        {bookingsError && (
+          <p style={{ fontSize: 12, color: "#c53030" }}>{bookingsError}</p>
+        )}
+
+        {!bookingsLoading && bookings.length === 0 && <p>No bookings yet</p>}
 
         {bookings.map((b) => (
           <div
@@ -428,10 +504,10 @@ export default function BookingPage() {
               <strong>Guests:</strong> {b.guests}
             </p>
             <p>
-              <strong>Rooms:</strong> {b.units}
+              <strong>Rooms:</strong> {b.rooms}
             </p>
             <p>
-              <strong>Status:</strong> {b.status}
+              <strong>Status:</strong> {formatBookingStatus(b.status)}
             </p>
             <p>
               <strong>Total:</strong> {formatIDR(b.totalAmount)}

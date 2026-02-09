@@ -55,6 +55,95 @@ type RateRule = {
   isActive: boolean;
 };
 
+type BookingStatus =
+  | "MENUNGGU_PEMBAYARAN"
+  | "MENUNGGU_KONFIRMASI_PEMBAYARAN"
+  | "DIPROSES"
+  | "DIBATALKAN"
+  | "SELESAI";
+
+type PaymentProofStatus = "SUBMITTED" | "APPROVED" | "REJECTED";
+
+type TenantPaymentProof = {
+  id: string;
+  bookingId: string;
+  method: "MANUAL_TRANSFER";
+  status: PaymentProofStatus;
+  imageUrl: string;
+  submittedAt: string;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  booking: {
+    id: string;
+    orderNo: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    rooms: number;
+    totalAmount: string;
+    status: BookingStatus;
+    property: {
+      id: string;
+      name: string;
+    };
+    roomType: {
+      id: string;
+      name: string;
+    };
+  };
+  user: {
+    id: string;
+    email: string;
+    fullName: string | null;
+    phone: string | null;
+  };
+};
+
+type TenantOrderRow = {
+  id: string;
+  orderNo: string;
+  property: string;
+  user: string;
+  nights: number;
+  status: BookingStatus;
+  total: number;
+};
+
+type TenantReview = {
+  id: string;
+  bookingId: string;
+  rating: number;
+  comment: string;
+  tenantReply: string | null;
+  tenantRepliedAt: string | null;
+  createdAt: string;
+  booking: {
+    id: string;
+    orderNo: string;
+    checkIn: string;
+    checkOut: string;
+    property: {
+      id: string;
+      name: string;
+    };
+  };
+  user: {
+    id: string;
+    email: string;
+    fullName: string | null;
+  };
+};
+
+type TenantReviewResponse = {
+  data: TenantReview[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 type NavKey =
   | "tenant-profile"
   | "property-category"
@@ -75,6 +164,13 @@ type NavItem = {
 type NavGroup = {
   title: string;
   items: NavItem[];
+};
+
+type RoomActionConfirmState = {
+  title: string;
+  description: string;
+  payload: Record<string, unknown>;
+  successMessage: string;
 };
 
 const navGroups: NavGroup[] = [
@@ -162,6 +258,55 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const formatDateTime = (value: string | null) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+};
+
+const formatBookingStatus = (status: BookingStatus) => {
+  switch (status) {
+    case "MENUNGGU_PEMBAYARAN":
+      return "Menunggu Pembayaran";
+    case "MENUNGGU_KONFIRMASI_PEMBAYARAN":
+      return "Menunggu Konfirmasi Pembayaran";
+    case "DIPROSES":
+      return "Diproses";
+    case "DIBATALKAN":
+      return "Dibatalkan";
+    case "SELESAI":
+      return "Selesai";
+    default:
+      return status;
+  }
+};
+
+const formatPaymentProofStatus = (status: PaymentProofStatus) => {
+  switch (status) {
+    case "SUBMITTED":
+      return "Menunggu Review";
+    case "APPROVED":
+      return "Disetujui";
+    case "REJECTED":
+      return "Ditolak";
+    default:
+      return status;
+  }
+};
+
+const countNights = (checkIn: string, checkOut: string) => {
+  const start = new Date(`${checkIn}T00:00:00`);
+  const end = new Date(`${checkOut}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  const diff = end.getTime() - start.getTime();
+  if (diff <= 0) return 0;
+  return Math.round(diff / (1000 * 60 * 60 * 24));
+};
+
 const formatDateInput = (date: Date) => {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -181,6 +326,14 @@ const getWeekdayLabel = (dateValue: string) => {
   const date = new Date(`${dateValue}T00:00:00`);
   if (Number.isNaN(date.getTime())) return "";
   return weekdayLabels[date.getDay()] ?? "";
+};
+
+const parsePositiveIntInput = (value: string): number | null => {
+  const raw = value.trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) return Number.NaN;
+  return parsed;
 };
 
 const fetchJson = async <T,>(
@@ -237,68 +390,10 @@ const mockSales = [
   },
 ];
 
-const mockOrders = [
-  {
-    id: "ORD-2001",
-    property: "Serenity Villas",
-    user: "Anisa Rahman",
-    nights: 2,
-    status: "Menunggu Pembayaran",
-    total: 1850000,
-  },
-  {
-    id: "ORD-2002",
-    property: "Skyline Suites",
-    user: "Kevin Hartono",
-    nights: 3,
-    status: "Menunggu Konfirmasi Pembayaran",
-    total: 2450000,
-  },
-  {
-    id: "ORD-2003",
-    property: "Garden Stay",
-    user: "Raka Putra",
-    nights: 1,
-    status: "Diproses",
-    total: 920000,
-  },
-];
-
-const mockPayments = [
-  {
-    id: "PAY-001",
-    orderId: "ORD-2002",
-    user: "Kevin Hartono",
-    amount: 2450000,
-    proof: "Bukti_Transfer_2002.jpg",
-  },
-];
-
 const mockCategories = [
   { id: "CAT-01", name: "Villa" },
   { id: "CAT-02", name: "Hotel" },
   { id: "CAT-03", name: "Resort" },
-];
-
-const mockReviews = [
-  {
-    id: "REV-101",
-    property: "Serenity Villas",
-    user: "Mira Putri",
-    rating: 5,
-    date: "2026-01-28",
-    comment:
-      "Kamar bersih dan staff responsif. Check-in cepat dan proses pembayaran jelas.",
-  },
-  {
-    id: "REV-102",
-    property: "Skyline Suites",
-    user: "Dimas Pratama",
-    rating: 4,
-    date: "2026-01-31",
-    comment:
-      "Lokasi strategis, fasilitas lengkap. Akan lebih baik jika ada panduan parkir lebih detail.",
-  },
 ];
 
 export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
@@ -308,12 +403,41 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   );
   const [sortBy, setSortBy] = useState<"date" | "total">("date");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | BookingStatus>(
+    "ALL",
+  );
+  const [paymentProofStatusFilter, setPaymentProofStatusFilter] =
+    useState<PaymentProofStatus>("SUBMITTED");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
-  const [reviewReplies, setReviewReplies] = useState<Record<string, string>>({});
-  const [paymentDecisions, setPaymentDecisions] = useState<
-    Record<string, "accepted" | "rejected">
+  const [tenantReviews, setTenantReviews] = useState<TenantReview[]>([]);
+  const [tenantReviewsLoading, setTenantReviewsLoading] = useState(false);
+  const [tenantReviewsError, setTenantReviewsError] = useState<string | null>(null);
+  const [reviewReplyLoadingId, setReviewReplyLoadingId] = useState<string | null>(
+    null,
+  );
+  const [reviewReplyFeedback, setReviewReplyFeedback] = useState<string | null>(
+    null,
+  );
+  const [paymentDecisionNotes, setPaymentDecisionNotes] = useState<
+    Record<string, string>
   >({});
+  const [paymentActionLoadingId, setPaymentActionLoadingId] = useState<
+    string | null
+  >(null);
+  const [paymentActionError, setPaymentActionError] = useState<string | null>(
+    null,
+  );
+  const [paymentActionFeedback, setPaymentActionFeedback] = useState<
+    string | null
+  >(null);
+  const [tenantPaymentProofs, setTenantPaymentProofs] = useState<
+    TenantPaymentProof[]
+  >([]);
+  const [tenantPaymentProofsLoading, setTenantPaymentProofsLoading] =
+    useState(false);
+  const [tenantPaymentProofsError, setTenantPaymentProofsError] = useState<
+    string | null
+  >(null);
   const [properties, setProperties] = useState<TenantProperty[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(false);
   const [propertiesError, setPropertiesError] = useState<string | null>(null);
@@ -349,15 +473,38 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const [roomActionSuccess, setRoomActionSuccess] = useState<string | null>(
     null,
   );
+  const [roomActionConfirm, setRoomActionConfirm] =
+    useState<RoomActionConfirmState | null>(null);
 
   const [rateRules, setRateRules] = useState<RateRule[]>([]);
   const [rateRulesLoading, setRateRulesLoading] = useState(false);
   const [rateRulesError, setRateRulesError] = useState<string | null>(null);
 
+  const tenantOrders = useMemo<TenantOrderRow[]>(() => {
+    const orderMap = new Map<string, TenantOrderRow>();
+
+    tenantPaymentProofs.forEach((proof) => {
+      if (orderMap.has(proof.booking.id)) return;
+
+      const total = Number(proof.booking.totalAmount);
+      orderMap.set(proof.booking.id, {
+        id: proof.booking.id,
+        orderNo: proof.booking.orderNo,
+        property: proof.booking.property.name,
+        user: proof.user.fullName ?? proof.user.email,
+        nights: countNights(proof.booking.checkIn, proof.booking.checkOut),
+        status: proof.booking.status,
+        total: Number.isFinite(total) ? total : 0,
+      });
+    });
+
+    return Array.from(orderMap.values());
+  }, [tenantPaymentProofs]);
+
   const filteredOrders = useMemo(() => {
-    if (statusFilter === "All") return mockOrders;
-    return mockOrders.filter((order) => order.status === statusFilter);
-  }, [statusFilter]);
+    if (statusFilter === "ALL") return tenantOrders;
+    return tenantOrders.filter((order) => order.status === statusFilter);
+  }, [statusFilter, tenantOrders]);
 
   const activeNavItem = useMemo(() => {
     return navGroups
@@ -505,6 +652,39 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     setRoomActionSuccess(null);
   };
 
+  const handleConfirmRoomAction = async () => {
+    if (!selectedRoomId || !roomActionConfirm) {
+      setRoomActionError("Aksi room belum siap dikonfirmasi.");
+      return;
+    }
+
+    try {
+      setRoomActionLoading(true);
+      setRoomActionError(null);
+      setRoomActionSuccess(null);
+
+      await fetchJson(`/availability/room-types/${selectedRoomId}`, {
+        method: "PUT",
+        body: JSON.stringify(roomActionConfirm.payload),
+      });
+
+      setRoomActionSuccess(roomActionConfirm.successMessage);
+      setRoomActionConfirm(null);
+      await Promise.all([loadAvailability(), loadRateRules()]);
+    } catch (err) {
+      setRoomActionError(
+        err instanceof Error ? err.message : "Gagal menerapkan perubahan room.",
+      );
+    } finally {
+      setRoomActionLoading(false);
+    }
+  };
+
+  const handleCancelRoomActionConfirm = () => {
+    if (roomActionLoading) return;
+    setRoomActionConfirm(null);
+  };
+
   const handleRoomActionApply = async () => {
     if (!selectedRoomId) {
       setRoomActionError("Pilih room terlebih dahulu.");
@@ -516,6 +696,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     }
 
     const sortedDates = [...selectedCalendarDates].sort();
+    const parsedUnits = parsePositiveIntInput(roomActionUnits);
+
+    if (roomActionUnits.trim() && Number.isNaN(parsedUnits)) {
+      setRoomActionError("Jumlah unit wajib angka bulat dan harus lebih dari 0.");
+      return;
+    }
 
     try {
       setRoomActionLoading(true);
@@ -527,18 +713,60 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           dates: sortedDates,
           isClosed: roomActionType === "close",
         };
-        if (roomActionType === "open" && roomActionUnits) {
-          payload.availableUnits = Number(roomActionUnits);
+
+        if (parsedUnits !== null && selectedRoom && parsedUnits > selectedRoom.totalUnits) {
+          setRoomActionError(
+            `Jumlah unit melebihi total room (${selectedRoom.totalUnits} unit).`,
+          );
+          return;
         }
-        await fetchJson(`/availability/room-types/${selectedRoomId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-        setRoomActionSuccess(
+
+        if (roomActionType === "open" && parsedUnits !== null) {
+          payload.availableUnits = parsedUnits;
+        }
+
+        if (roomActionType === "close" && parsedUnits !== null) {
+          const selectedDatesSet = new Set(sortedDates);
+          const insufficientDate = availabilityData?.items.find(
+            (item) =>
+              selectedDatesSet.has(item.date) && parsedUnits > item.availableUnits,
+          );
+          if (insufficientDate) {
+            setRoomActionError(
+              `Jumlah room yang ditutup (${parsedUnits} unit) melebihi stok tanggal ${insufficientDate.date} (${insufficientDate.availableUnits} unit).`,
+            );
+            return;
+          }
+          payload.closeUnits = parsedUnits;
+        }
+
+        const successMessage =
           roomActionType === "close"
-            ? "Tanggal terpilih berhasil ditutup."
-            : "Tanggal terpilih berhasil dibuka.",
-        );
+            ? parsedUnits !== null
+              ? `${parsedUnits} unit pada tanggal terpilih berhasil ditutup.`
+              : "Tanggal terpilih berhasil ditutup."
+            : parsedUnits !== null
+              ? `Tanggal terpilih berhasil dibuka dengan ${parsedUnits} unit tersedia.`
+              : "Tanggal terpilih berhasil dibuka.";
+
+        const actionTitle =
+          roomActionType === "close" ? "Konfirmasi Tutup Room" : "Konfirmasi Buka Room";
+        const actionDescription =
+          roomActionType === "close"
+            ? parsedUnits !== null
+              ? `Kamu akan menutup ${parsedUnits} unit untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
+              : `Kamu akan menutup room untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
+            : parsedUnits !== null
+              ? `Kamu akan membuka room dengan ${parsedUnits} unit tersedia untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
+              : `Kamu akan membuka room untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`;
+
+        setRoomActionConfirm({
+          title: actionTitle,
+          description: actionDescription,
+          payload,
+          successMessage,
+        });
+        return;
       } else {
         if (!roomAdjustmentValue.trim()) {
           setRoomActionError("Nilai penyesuaian harga wajib diisi.");
@@ -584,17 +812,120 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     }
   };
 
-  const handleSubmitReply = (reviewId: string) => {
+  const loadTenantPaymentProofs = async () => {
+    try {
+      setTenantPaymentProofsLoading(true);
+      setTenantPaymentProofsError(null);
+      const query = new URLSearchParams({
+        status: paymentProofStatusFilter,
+      });
+      const data = await fetchJson<TenantPaymentProof[]>(
+        `/bookings/tenant/payment-proofs?${query.toString()}`,
+      );
+      setTenantPaymentProofs(data);
+    } catch (err) {
+      setTenantPaymentProofsError(
+        err instanceof Error ? err.message : "Gagal memuat bukti pembayaran.",
+      );
+      setTenantPaymentProofs([]);
+    } finally {
+      setTenantPaymentProofsLoading(false);
+    }
+  };
+
+  const loadTenantReviews = async () => {
+    try {
+      setTenantReviewsLoading(true);
+      setTenantReviewsError(null);
+      const query = new URLSearchParams({
+        page: "1",
+        limit: "50",
+      });
+      const data = await fetchJson<TenantReviewResponse>(
+        `/bookings/tenant/reviews?${query.toString()}`,
+      );
+      setTenantReviews(data.data ?? []);
+    } catch (err) {
+      setTenantReviewsError(
+        err instanceof Error ? err.message : "Gagal memuat review user.",
+      );
+      setTenantReviews([]);
+    } finally {
+      setTenantReviewsLoading(false);
+    }
+  };
+
+  const handlePaymentProofReview = async (
+    paymentProofId: string,
+    action: "approve" | "reject",
+  ) => {
+    try {
+      setPaymentActionLoadingId(paymentProofId);
+      setPaymentActionError(null);
+      setPaymentActionFeedback(null);
+
+      const notes = (paymentDecisionNotes[paymentProofId] ?? "").trim();
+
+      await fetchJson(`/bookings/tenant/payment-proofs/${paymentProofId}/${action}`, {
+        method: "POST",
+        body: JSON.stringify(notes ? { notes } : {}),
+      });
+
+      setPaymentActionFeedback(
+        action === "approve"
+          ? "Bukti pembayaran berhasil disetujui."
+          : "Bukti pembayaran berhasil ditolak.",
+      );
+      setPaymentDecisionNotes((prev) => ({
+        ...prev,
+        [paymentProofId]: "",
+      }));
+
+      await loadTenantPaymentProofs();
+    } catch (err) {
+      setPaymentActionError(
+        err instanceof Error
+          ? err.message
+          : "Gagal memproses bukti pembayaran.",
+      );
+    } finally {
+      setPaymentActionLoadingId(null);
+    }
+  };
+
+  const handleSubmitReply = async (reviewId: string) => {
     const draft = reviewDrafts[reviewId]?.trim() ?? "";
-    if (!draft) return;
-    setReviewReplies((prev) => ({
-      ...prev,
-      [reviewId]: draft,
-    }));
-    setReviewDrafts((prev) => ({
-      ...prev,
-      [reviewId]: "",
-    }));
+    if (!draft) {
+      setTenantReviewsError("Balasan review tidak boleh kosong.");
+      return;
+    }
+
+    try {
+      setReviewReplyLoadingId(reviewId);
+      setTenantReviewsError(null);
+      setReviewReplyFeedback(null);
+
+      const result = await fetchJson<{ message?: string }>(
+        `/bookings/tenant/reviews/${reviewId}/reply`,
+        {
+          method: "POST",
+          body: JSON.stringify({ reply: draft }),
+        },
+      );
+
+      setReviewDrafts((prev) => ({
+        ...prev,
+        [reviewId]: "",
+      }));
+      setReviewReplyFeedback(result.message ?? "Balasan review berhasil dikirim.");
+      await loadTenantReviews();
+    } catch (err) {
+      setTenantReviewsError(
+        err instanceof Error ? err.message : "Gagal mengirim balasan review.",
+      );
+    } finally {
+      setReviewReplyLoadingId(null);
+    }
   };
 
   useEffect(() => {
@@ -636,6 +967,16 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   }, [active, selectedPropertyId, selectedRoomId]);
 
   useEffect(() => {
+    if (active !== "order-management") return;
+    loadTenantPaymentProofs();
+  }, [active, paymentProofStatusFilter]);
+
+  useEffect(() => {
+    if (active !== "customer-relations") return;
+    loadTenantReviews();
+  }, [active]);
+
+  useEffect(() => {
     if (active !== "room-management") return;
     if (availabilityQuery.startDate && availabilityQuery.endDate) return;
     const today = new Date();
@@ -661,6 +1002,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     setSelectedCalendarDates([]);
     setRoomActionError(null);
     setRoomActionSuccess(null);
+    setRoomActionConfirm(null);
   }, [selectedRoomId]);
 
   return (
@@ -1211,17 +1553,40 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 </div>
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as "ALL" | BookingStatus)
+                  }
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600"
                 >
-                  <option value="All">Semua Status</option>
-                  <option value="Menunggu Pembayaran">Menunggu Pembayaran</option>
-                  <option value="Menunggu Konfirmasi Pembayaran">
+                  <option value="ALL">Semua Status</option>
+                  <option value="MENUNGGU_PEMBAYARAN">Menunggu Pembayaran</option>
+                  <option value="MENUNGGU_KONFIRMASI_PEMBAYARAN">
                     Menunggu Konfirmasi Pembayaran
                   </option>
-                  <option value="Diproses">Diproses</option>
+                  <option value="DIPROSES">Diproses</option>
+                  <option value="DIBATALKAN">Dibatalkan</option>
+                  <option value="SELESAI">Selesai</option>
                 </select>
               </div>
+
+              {tenantPaymentProofsError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {tenantPaymentProofsError}
+                </div>
+              ) : null}
+
+              {paymentActionError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {paymentActionError}
+                </div>
+              ) : null}
+
+              {paymentActionFeedback ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {paymentActionFeedback}
+                </div>
+              ) : null}
+
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-400">
@@ -1235,28 +1600,39 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.map((order) => (
-                      <tr key={order.id} className="border-t border-slate-100">
-                        <td className="px-4 py-3 font-semibold text-slate-900">
-                          {order.id}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {order.property}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {order.user}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {order.nights}
-                        </td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                          {formatCurrency(order.total)}
-                        </td>
-                        <td className="px-4 py-3 text-xs font-semibold text-slate-500">
-                          {order.status}
+                    {filteredOrders.length === 0 ? (
+                      <tr className="border-t border-slate-100">
+                        <td
+                          colSpan={6}
+                          className="px-4 py-6 text-center text-sm text-slate-500"
+                        >
+                          Tidak ada data order untuk filter ini.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredOrders.map((order) => (
+                        <tr key={order.id} className="border-t border-slate-100">
+                          <td className="px-4 py-3 font-semibold text-slate-900">
+                            {order.orderNo}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {order.property}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {order.user}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {order.nights}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                            {formatCurrency(order.total)}
+                          </td>
+                          <td className="px-4 py-3 text-xs font-semibold text-slate-500">
+                            {formatBookingStatus(order.status)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1265,11 +1641,39 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 belum diunggah.
               </p>
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                  Konfirmasi Bukti Pembayaran
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
+                    Konfirmasi Bukti Pembayaran
+                  </p>
+                  <select
+                    value={paymentProofStatusFilter}
+                    onChange={(event) =>
+                      setPaymentProofStatusFilter(
+                        event.target.value as PaymentProofStatus,
+                      )
+                    }
+                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600"
+                  >
+                    <option value="SUBMITTED">Menunggu Review</option>
+                    <option value="APPROVED">Disetujui</option>
+                    <option value="REJECTED">Ditolak</option>
+                  </select>
+                </div>
+
+                {tenantPaymentProofsLoading ? (
+                  <p className="text-xs text-slate-500">
+                    Memuat bukti pembayaran...
+                  </p>
+                ) : null}
+
+                {!tenantPaymentProofsLoading && tenantPaymentProofs.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+                    Tidak ada bukti pembayaran.
+                  </div>
+                ) : null}
+
                 <div className="grid gap-4">
-                  {mockPayments.map((payment) => (
+                  {tenantPaymentProofs.map((payment) => (
                     <div
                       key={payment.id}
                       className="rounded-2xl border border-slate-200 bg-white p-4"
@@ -1280,59 +1684,84 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             {payment.id}
                           </p>
                           <p className="mt-1 text-sm font-semibold text-slate-900">
-                            {payment.orderId} • {payment.user}
+                            {payment.booking.orderNo} •{" "}
+                            {payment.user.fullName ?? payment.user.email}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {payment.booking.property.name} •{" "}
+                            {payment.booking.roomType.name}
                           </p>
                           <p className="text-sm text-slate-500">
-                            {formatCurrency(payment.amount)}
+                            {formatCurrency(Number(payment.booking.totalAmount))}
                           </p>
                           <p className="text-xs text-slate-400">
-                            Bukti: {payment.proof}
+                            Dikirim: {formatDateTime(payment.submittedAt)}
                           </p>
+                          <p className="text-xs text-slate-400">
+                            Status: {formatPaymentProofStatus(payment.status)}
+                          </p>
+                          {payment.reviewNotes ? (
+                            <p className="mt-1 text-xs text-slate-500">
+                              Catatan review: {payment.reviewNotes}
+                            </p>
+                          ) : null}
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPaymentDecisions((prev) => ({
-                                ...prev,
-                                [payment.id]: "accepted",
-                              }))
-                            }
-                            className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700"
-                          >
-                            Terima
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPaymentDecisions((prev) => ({
-                                ...prev,
-                                [payment.id]: "rejected",
-                              }))
-                            }
-                            className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700"
-                          >
-                            Tolak
-                          </button>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-xs text-slate-500">
-                        Jika ditolak → status kembali ke Menunggu Pembayaran.
-                        Jika diterima → status menjadi Diproses.
-                      </p>
-                      {paymentDecisions[payment.id] ? (
-                        <p
-                          className={`mt-2 text-xs font-semibold ${
-                            paymentDecisions[payment.id] === "accepted"
-                              ? "text-emerald-700"
-                              : "text-rose-700"
-                          }`}
+                        <a
+                          href={payment.imageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                         >
-                          {paymentDecisions[payment.id] === "accepted"
-                            ? "Pembayaran diterima. Notifikasi dikirim ke user."
-                            : "Pembayaran ditolak. Status order kembali ke menunggu pembayaran."}
+                          Lihat Bukti
+                        </a>
+                      </div>
+
+                      {payment.status === "SUBMITTED" ? (
+                        <div className="mt-3 space-y-3">
+                          <textarea
+                            value={paymentDecisionNotes[payment.id] ?? ""}
+                            onChange={(event) =>
+                              setPaymentDecisionNotes((prev) => ({
+                                ...prev,
+                                [payment.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Catatan opsional untuk user..."
+                            className="min-h-20 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handlePaymentProofReview(payment.id, "approve")
+                              }
+                              disabled={paymentActionLoadingId === payment.id}
+                              className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-60"
+                            >
+                              {paymentActionLoadingId === payment.id
+                                ? "Memproses..."
+                                : "Terima"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handlePaymentProofReview(payment.id, "reject")
+                              }
+                              disabled={paymentActionLoadingId === payment.id}
+                              className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 disabled:opacity-60"
+                            >
+                              {paymentActionLoadingId === payment.id
+                                ? "Memproses..."
+                                : "Tolak"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-xs text-slate-500">
+                          Bukti pembayaran sudah direview tenant pada{" "}
+                          {formatDateTime(payment.reviewedAt)}.
                         </p>
-                      ) : null}
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1350,8 +1779,31 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   Balas review yang disubmit user
                 </h2>
               </div>
+
+              {tenantReviewsError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {tenantReviewsError}
+                </div>
+              ) : null}
+
+              {reviewReplyFeedback ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {reviewReplyFeedback}
+                </div>
+              ) : null}
+
+              {tenantReviewsLoading ? (
+                <p className="text-xs text-slate-500">Memuat review user...</p>
+              ) : null}
+
+              {!tenantReviewsLoading && tenantReviews.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">
+                  Belum ada review dari user.
+                </div>
+              ) : null}
+
               <div className="grid gap-4">
-                {mockReviews.map((review) => (
+                {tenantReviews.map((review) => (
                   <div
                     key={review.id}
                     className="rounded-2xl border border-slate-200 bg-white p-4"
@@ -1359,12 +1811,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                          {review.property}
+                          {review.booking.property.name}
                         </p>
                         <p className="mt-1 text-sm font-semibold text-slate-900">
-                          {review.user}
+                          {review.user.fullName ?? review.user.email}
                         </p>
-                        <p className="text-xs text-slate-500">{review.date}</p>
+                        <p className="text-xs text-slate-500">
+                          {formatDateTime(review.createdAt)}
+                        </p>
                         <p className="mt-2 text-xs font-semibold text-amber-700">
                           {"★".repeat(review.rating)}
                         </p>
@@ -1375,36 +1829,45 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     </div>
                     <p className="mt-3 text-sm text-slate-600">{review.comment}</p>
                     <div className="mt-4 space-y-2">
-                      <textarea
-                        value={reviewDrafts[review.id] ?? ""}
-                        onChange={(event) =>
-                          setReviewDrafts((prev) => ({
-                            ...prev,
-                            [review.id]: event.target.value,
-                          }))
-                        }
-                        rows={3}
-                        placeholder="Tulis balasan tenant..."
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSubmitReply(review.id)}
-                        className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
-                      >
-                        Kirim Balasan
-                      </button>
+                      {review.tenantReply ? (
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                          <p className="text-xs font-semibold text-emerald-700">
+                            Balasan Tenant
+                          </p>
+                          <p className="mt-1 text-sm text-slate-700">
+                            {review.tenantReply}
+                          </p>
+                          <p className="mt-2 text-xs text-slate-500">
+                            Dibalas pada: {formatDateTime(review.tenantRepliedAt)}
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <textarea
+                            value={reviewDrafts[review.id] ?? ""}
+                            onChange={(event) =>
+                              setReviewDrafts((prev) => ({
+                                ...prev,
+                                [review.id]: event.target.value,
+                              }))
+                            }
+                            rows={3}
+                            placeholder="Tulis balasan tenant..."
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSubmitReply(review.id)}
+                            disabled={reviewReplyLoadingId === review.id}
+                            className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                          >
+                            {reviewReplyLoadingId === review.id
+                              ? "Mengirim..."
+                              : "Kirim Balasan"}
+                          </button>
+                        </>
+                      )}
                     </div>
-                    {reviewReplies[review.id] ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-                        <p className="text-xs font-semibold text-emerald-700">
-                          Balasan terkirim
-                        </p>
-                        <p className="mt-1 text-sm text-slate-700">
-                          {reviewReplies[review.id]}
-                        </p>
-                      </div>
-                    ) : null}
                   </div>
                 ))}
               </div>
@@ -1721,7 +2184,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
               <div className="rounded-3xl border border-slate-200 bg-white p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                  Aksi Cepat
+                  Room Setting
                 </p>
                 <h3 className="mt-2 text-lg font-semibold text-slate-900">
                   Terapkan aksi ke tanggal yang sudah dipilih
@@ -1748,16 +2211,25 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   ))}
                 </div>
 
-                {roomActionType === "open" ? (
+                {roomActionType === "open" || roomActionType === "close" ? (
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <input
                       type="number"
-                      min={0}
-                      placeholder="Jumlah unit available (opsional)"
+                      min={1}
+                      placeholder={
+                        roomActionType === "open"
+                          ? "Jumlah unit available (opsional)"
+                          : "Jumlah unit yang ditutup (opsional)"
+                      }
                       value={roomActionUnits}
                       onChange={(event) => setRoomActionUnits(event.target.value)}
                       className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
                     />
+                    <p className="text-xs text-slate-500 md:col-span-2">
+                      {roomActionType === "open"
+                        ? "Kosongkan jika hanya ingin membuka status room tanpa mengubah jumlah unit."
+                        : "Isi jumlah unit yang ingin ditutup. Kosongkan untuk menutup penuh pada tanggal terpilih."}
+                    </p>
                   </div>
                 ) : null}
 
@@ -1936,6 +2408,45 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           ) : null}
         </section>
       </main>
+
+      {roomActionConfirm ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/55 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
+              Konfirmasi Aksi
+            </p>
+            <h3 className="mt-2 text-lg font-semibold text-slate-900">
+              {roomActionConfirm.title}
+            </h3>
+            <p className="mt-3 text-sm text-slate-600">
+              {roomActionConfirm.description}
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCancelRoomActionConfirm}
+                disabled={roomActionLoading}
+                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-60"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRoomAction}
+                disabled={roomActionLoading}
+                className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                {roomActionLoading ? "Memproses..." : "Ya"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

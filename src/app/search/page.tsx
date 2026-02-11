@@ -25,8 +25,13 @@ type SearchResponseItem = {
   address?: string | null;
   city?: string | null;
   province?: string | null;
+  categoryName?: string | null;
   coverUrl?: string | null;
   minPrice?: string | null;
+};
+
+type PublicCategory = {
+  name: string;
 };
 
 type SearchResponse = {
@@ -50,6 +55,29 @@ type DisplayResult = {
   image: string;
 };
 
+type SearchFormState = {
+  lat: string;
+  lng: string;
+  country: string;
+  locTerm: string;
+  propertyName: string;
+  category: string;
+  sortBy: "name" | "price";
+  sortOrder: "asc" | "desc";
+  startDate: string;
+  endDate: string;
+  adults: number;
+  children: number;
+  rooms: number;
+  page: number;
+};
+
+const parseSortBy = (value: string | null): "name" | "price" =>
+  value === "price" ? "price" : "name";
+
+const parseSortOrder = (value: string | null): "asc" | "desc" =>
+  value === "desc" ? "desc" : "asc";
+
 const diffNights = (start: string, end: string) => {
   if (!start || !end) return 0;
   const startDate = new Date(`${start}T00:00:00`);
@@ -72,11 +100,15 @@ function SearchPageContent() {
   const searchParams = useSearchParams();
   const paramsSnapshot = searchParams.toString();
 
-  const [form, setForm] = useState(() => ({
+  const [form, setForm] = useState<SearchFormState>(() => ({
     lat: searchParams.get("lat") ?? "",
     lng: searchParams.get("lng") ?? "",
     country: searchParams.get("country") ?? "",
     locTerm: searchParams.get("loc_term") ?? "",
+    propertyName: searchParams.get("property_name") ?? "",
+    category: searchParams.get("category") ?? "",
+    sortBy: parseSortBy(searchParams.get("sort_by")),
+    sortOrder: parseSortOrder(searchParams.get("sort_order")),
     startDate: searchParams.get("start_date") ?? "",
     endDate: searchParams.get("end_date") ?? "",
     adults: parseNumber(searchParams.get("adults"), 0),
@@ -88,6 +120,13 @@ function SearchPageContent() {
   const [results, setResults] = useState<DisplayResult[]>([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<PublicCategory[]>([]);
+  const [resultsMeta, setResultsMeta] = useState({
+    page: 1,
+    limit: 8,
+    total: 0,
+    totalPages: 1,
+  });
 
   useEffect(() => {
     setForm({
@@ -95,6 +134,10 @@ function SearchPageContent() {
       lng: searchParams.get("lng") ?? "",
       country: searchParams.get("country") ?? "",
       locTerm: searchParams.get("loc_term") ?? "",
+      propertyName: searchParams.get("property_name") ?? "",
+      category: searchParams.get("category") ?? "",
+      sortBy: parseSortBy(searchParams.get("sort_by")),
+      sortOrder: parseSortOrder(searchParams.get("sort_order")),
       startDate: searchParams.get("start_date") ?? "",
       endDate: searchParams.get("end_date") ?? "",
       adults: parseNumber(searchParams.get("adults"), 0),
@@ -123,7 +166,7 @@ function SearchPageContent() {
         location: buildLocation(item),
         price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
         rating: "4.8",
-        tag: "Properti",
+        tag: item.categoryName?.trim() || "Properti",
         highlight: item.address ? "Akses mudah dan lokasi strategis" : "Properti terverifikasi",
         image: item.coverUrl || fallbackImages[index % fallbackImages.length],
       } satisfies DisplayResult;
@@ -147,8 +190,20 @@ function SearchPageContent() {
       }
       const payload = (await res.json()) as SearchResponse;
       setResults(mapToDisplay(payload.data ?? []));
+      setResultsMeta({
+        page: payload.meta?.page ?? 1,
+        limit: payload.meta?.limit ?? 8,
+        total: payload.meta?.total ?? 0,
+        totalPages: payload.meta?.totalPages ?? 1,
+      });
     } catch (err) {
       setResults([]);
+      setResultsMeta({
+        page: 1,
+        limit: 8,
+        total: 0,
+        totalPages: 1,
+      });
       setResultsError(
         err instanceof Error ? err.message : "Gagal memuat hasil pencarian.",
       );
@@ -161,19 +216,62 @@ function SearchPageContent() {
     fetchResults();
   }, [paramsSnapshot]);
 
-  const handleApplySearch = () => {
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/properties/categories`);
+      if (!res.ok) return;
+      const payload = (await res.json()) as PublicCategory[];
+      if (!Array.isArray(payload)) return;
+      setCategories(
+        payload
+          .filter((item): item is PublicCategory => {
+            return typeof item?.name === "string" && item.name.trim().length > 0;
+          })
+          .map((item) => ({ name: item.name.trim() })),
+      );
+    } catch {
+      setCategories([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const pushSearch = (nextForm: SearchFormState) => {
     const params = new URLSearchParams();
-    if (form.lat) params.set("lat", form.lat);
-    if (form.lng) params.set("lng", form.lng);
-    if (form.country) params.set("country", form.country);
-    if (form.startDate) params.set("start_date", form.startDate);
-    if (form.endDate) params.set("end_date", form.endDate);
-    params.set("adults", String(form.adults));
-    params.set("children", String(form.children));
-    params.set("rooms", String(form.rooms));
-    params.set("loc_term", form.locTerm);
-    params.set("page", String(form.page || 1));
+    if (nextForm.lat) params.set("lat", nextForm.lat);
+    if (nextForm.lng) params.set("lng", nextForm.lng);
+    if (nextForm.country) params.set("country", nextForm.country);
+    if (nextForm.startDate) params.set("start_date", nextForm.startDate);
+    if (nextForm.endDate) params.set("end_date", nextForm.endDate);
+    params.set("adults", String(nextForm.adults));
+    params.set("children", String(nextForm.children));
+    params.set("rooms", String(nextForm.rooms));
+    params.set("loc_term", nextForm.locTerm.trim());
+    if (nextForm.propertyName.trim()) {
+      params.set("property_name", nextForm.propertyName.trim());
+    }
+    if (nextForm.category.trim()) {
+      params.set("category", nextForm.category.trim());
+    }
+    params.set("sort_by", nextForm.sortBy);
+    params.set("sort_order", nextForm.sortOrder);
+    params.set("page", String(Math.max(1, nextForm.page || 1)));
     router.push(`/search?${params.toString()}`);
+  };
+
+  const handleApplySearch = () => {
+    const nextForm = { ...form, page: 1 };
+    setForm(nextForm);
+    pushSearch(nextForm);
+  };
+
+  const handleChangePage = (nextPage: number) => {
+    if (nextPage < 1 || nextPage > resultsMeta.totalPages) return;
+    const nextForm = { ...form, page: nextPage };
+    setForm(nextForm);
+    pushSearch(nextForm);
   };
 
   return (
@@ -243,11 +341,53 @@ function SearchPageContent() {
             <input
               value={form.locTerm}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, locTerm: event.target.value }))
+                setForm((prev) => ({
+                  ...prev,
+                  locTerm: event.target.value,
+                  page: 1,
+                }))
               }
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
               placeholder="Cari kota atau destinasi"
             />
+          </label>
+
+          <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
+            Nama properti
+            <input
+              value={form.propertyName}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  propertyName: event.target.value,
+                  page: 1,
+                }))
+              }
+              className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
+              placeholder="Cari nama properti"
+            />
+          </label>
+
+          <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
+            Kategori
+            <select
+              value={form.category}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  category: event.target.value,
+                  page: 1,
+                }))
+              }
+              className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
+            >
+              <option value="">Semua kategori</option>
+              {categories.map((category) => (
+                <option key={category.name} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
@@ -256,7 +396,11 @@ function SearchPageContent() {
               type="date"
               value={form.startDate}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, startDate: event.target.value }))
+                setForm((prev) => ({
+                  ...prev,
+                  startDate: event.target.value,
+                  page: 1,
+                }))
               }
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
             />
@@ -268,7 +412,11 @@ function SearchPageContent() {
               type="date"
               value={form.endDate}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, endDate: event.target.value }))
+                setForm((prev) => ({
+                  ...prev,
+                  endDate: event.target.value,
+                  page: 1,
+                }))
               }
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
             />
@@ -285,6 +433,7 @@ function SearchPageContent() {
                   setForm((prev) => ({
                     ...prev,
                     adults: Number(event.target.value),
+                    page: 1,
                   }))
                 }
                 className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
@@ -300,6 +449,7 @@ function SearchPageContent() {
                   setForm((prev) => ({
                     ...prev,
                     children: Number(event.target.value),
+                    page: 1,
                   }))
                 }
                 className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
@@ -316,6 +466,7 @@ function SearchPageContent() {
                 setForm((prev) => ({
                   ...prev,
                   rooms: Number(event.target.value),
+                  page: 1,
                 }))
               }
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
@@ -333,8 +484,8 @@ function SearchPageContent() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
             {resultsLoading
               ? "Memuat hasil pencarian..."
-              : `Menampilkan ${results.length} properti yang paling relevan${
-                  form.locTerm ? ` di ${form.locTerm}.` : "."
+              : `Menampilkan ${resultsMeta.total} properti${
+                  form.locTerm ? ` di sekitar "${form.locTerm}".` : "."
                 }`}
           </div>
         </aside>
@@ -348,11 +499,45 @@ function SearchPageContent() {
               <h3 className="mt-2 text-xl font-semibold text-slate-900">
                 {resultsLoading
                   ? "Memuat..."
-                  : `${results.length} pilihan untuk kamu`}
+                  : `${resultsMeta.total} pilihan untuk kamu`}
               </h3>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Sort: Recommended
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Sort By
+              </label>
+              <select
+                value={form.sortBy}
+                onChange={(event) => {
+                  const nextForm = {
+                    ...form,
+                    sortBy: event.target.value as "name" | "price",
+                    page: 1,
+                  };
+                  setForm(nextForm);
+                  pushSearch(nextForm);
+                }}
+                className="h-9 rounded-full border border-slate-200 px-3 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600 focus:border-teal-500 focus:outline-none"
+              >
+                <option value="name">Name</option>
+                <option value="price">Price</option>
+              </select>
+              <select
+                value={form.sortOrder}
+                onChange={(event) => {
+                  const nextForm = {
+                    ...form,
+                    sortOrder: event.target.value as "asc" | "desc",
+                    page: 1,
+                  };
+                  setForm(nextForm);
+                  pushSearch(nextForm);
+                }}
+                className="h-9 rounded-full border border-slate-200 px-3 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600 focus:border-teal-500 focus:outline-none"
+              >
+                <option value="asc">Asc</option>
+                <option value="desc">Desc</option>
+              </select>
             </div>
           </div>
 
@@ -410,6 +595,49 @@ function SearchPageContent() {
           {resultsError && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {resultsError}
+            </div>
+          )}
+
+          {resultsMeta.totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <button
+                type="button"
+                onClick={() => handleChangePage(resultsMeta.page - 1)}
+                disabled={resultsMeta.page <= 1 || resultsLoading}
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-50"
+              >
+                Prev
+              </button>
+              {Array.from({ length: resultsMeta.totalPages }, (_, index) => index + 1)
+                .slice(
+                  Math.max(0, resultsMeta.page - 3),
+                  Math.max(0, resultsMeta.page - 3) + 5,
+                )
+                .map((pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    type="button"
+                    onClick={() => handleChangePage(pageNumber)}
+                    disabled={resultsLoading}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      pageNumber === resultsMeta.page
+                        ? "bg-slate-900 text-white"
+                        : "border border-slate-200 text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                ))}
+              <button
+                type="button"
+                onClick={() => handleChangePage(resultsMeta.page + 1)}
+                disabled={
+                  resultsMeta.page >= resultsMeta.totalPages || resultsLoading
+                }
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
           )}
         </div>

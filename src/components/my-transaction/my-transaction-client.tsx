@@ -11,6 +11,8 @@ type BookingStatus =
   | "DIBATALKAN"
   | "SELESAI";
 
+type PaymentMethod = "MANUAL_TRANSFER" | "XENDIT";
+
 type TransactionReview = {
   id: string;
   rating: number;
@@ -29,6 +31,8 @@ type TransactionItem = {
   rooms: number;
   totalAmount: string;
   status: BookingStatus;
+  paymentMethod: PaymentMethod;
+  xenditInvoiceUrl?: string | null;
   createdAt: string;
   review?: TransactionReview | null;
   roomType?: {
@@ -182,6 +186,17 @@ const formatStatusLabel = (status: BookingStatus) => {
       return "Selesai";
     default:
       return status;
+  }
+};
+
+const formatPaymentMethodLabel = (method: PaymentMethod) => {
+  switch (method) {
+    case "MANUAL_TRANSFER":
+      return "Transfer Manual";
+    case "XENDIT":
+      return "Payment Gateway Xendit";
+    default:
+      return method;
   }
 };
 
@@ -609,11 +624,30 @@ export default function MyTransactionClient() {
                         {trx.guests} / {trx.rooms}
                       </span>
                     </p>
+                    <p>
+                      Metode Bayar:{" "}
+                      <span className="font-semibold text-slate-900">
+                        {formatPaymentMethodLabel(trx.paymentMethod)}
+                      </span>
+                    </p>
                   </div>
 
                   <p className="mt-3 text-sm font-semibold text-slate-900">
                     Total: {formatIDR(trx.totalAmount)}
                   </p>
+
+                  {trx.status === "MENUNGGU_PEMBAYARAN" &&
+                  trx.paymentMethod === "XENDIT" &&
+                  trx.xenditInvoiceUrl ? (
+                    <a
+                      href={trx.xenditInvoiceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Bayar Sekarang
+                    </a>
+                  ) : null}
 
                   {trx.review ? (
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">

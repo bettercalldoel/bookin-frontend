@@ -5,6 +5,11 @@ import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { clearAuthToken, getAuthToken } from "@/lib/auth-client";
+import {
+  BUTTON_THEME,
+  HOMEPAGE_PRIMARY_BUTTON,
+  INPUT_THEME,
+} from "@/lib/button-theme";
 
 const fallbackCarouselImages = [
   "/images/property-1.jpg",
@@ -47,15 +52,7 @@ const slides = [
   },
 ];
 
-const destinations = [
-  "Jakarta",
-  "Bandung",
-  "Yogyakarta",
-  "Surabaya",
-  "Bali",
-  "Labuan Bajo",
-  "Makassar",
-];
+const DESTINATION_DEBOUNCE_MS = 350;
 
 const properties = [
   {
@@ -130,6 +127,7 @@ export default function Home() {
   const userMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   const isTenant = userType === "TENANT";
+  const [destinationInput, setDestinationInput] = useState("");
   const [searchForm, setSearchForm] = useState(() => {
     const defaults = getDefaultDateRange();
     return {
@@ -141,6 +139,17 @@ export default function Home() {
       rooms: 1,
     };
   });
+
+  useEffect(() => {
+    const debounceId = window.setTimeout(() => {
+      const normalized = destinationInput.trim();
+      setSearchForm((prev) =>
+        prev.locTerm === normalized ? prev : { ...prev, locTerm: normalized },
+      );
+    }, DESTINATION_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(debounceId);
+  }, [destinationInput]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -184,6 +193,7 @@ export default function Home() {
   }, [isUserMenuOpen]);
 
   const handleSearchSubmit = () => {
+    const destination = destinationInput.trim();
     const params = new URLSearchParams();
     params.set("lat", "");
     params.set("lng", "");
@@ -193,7 +203,7 @@ export default function Home() {
     params.set("adults", String(searchForm.adults));
     params.set("children", String(searchForm.children));
     params.set("rooms", String(searchForm.rooms));
-    params.set("loc_term", searchForm.locTerm || "");
+    params.set("loc_term", destination);
     params.set("page", "1");
     router.push(`/search?${params.toString()}`);
   };
@@ -580,13 +590,13 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleSearchSubmit}
-                    className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                    className={`${HOMEPAGE_PRIMARY_BUTTON} ${BUTTON_THEME.solid}`}
                   >
                     Cari properti
                   </button>
                 </div>
                 <form
-                  className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-5"
+                  className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-6"
                   onSubmit={(event) => {
                     event.preventDefault();
                     handleSearchSubmit();
@@ -596,23 +606,13 @@ export default function Home() {
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                       Kota destinasi
                     </label>
-                    <select
-                      value={searchForm.locTerm}
-                      onChange={(event) =>
-                        setSearchForm((prev) => ({
-                          ...prev,
-                          locTerm: event.target.value,
-                        }))
-                      }
-                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
-                    >
-                      <option value="">Semua kota</option>
-                      {destinations.map((city) => (
-                        <option key={city} value={city}>
-                          {city}
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      type="text"
+                      value={destinationInput}
+                      onChange={(event) => setDestinationInput(event.target.value)}
+                      placeholder="Masukkan kota tujuan"
+                      className={`h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm ${INPUT_THEME.focus}`}
+                    />
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -627,7 +627,7 @@ export default function Home() {
                           startDate: event.target.value,
                         }))
                       }
-                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                      className={`h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm ${INPUT_THEME.focus}`}
                     />
                   </div>
                   <div className="flex flex-col gap-2">
@@ -643,7 +643,7 @@ export default function Home() {
                           endDate: event.target.value,
                         }))
                       }
-                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                      className={`h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm ${INPUT_THEME.focus}`}
                     />
                   </div>
                   <div className="flex flex-col gap-2">
@@ -660,7 +660,7 @@ export default function Home() {
                           adults: Number(event.target.value),
                         }))
                       }
-                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                      className={`h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm ${INPUT_THEME.focus}`}
                     />
                   </div>
                   <div className="flex flex-col gap-2">
@@ -677,7 +677,7 @@ export default function Home() {
                           children: Number(event.target.value),
                         }))
                       }
-                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                      className={`h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm ${INPUT_THEME.focus}`}
                     />
                   </div>
                   <div className="flex flex-col gap-2">
@@ -694,7 +694,7 @@ export default function Home() {
                           rooms: Number(event.target.value),
                         }))
                       }
-                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none"
+                      className={`h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm ${INPUT_THEME.focus}`}
                     />
                   </div>
                 </form>
@@ -782,7 +782,7 @@ export default function Home() {
                 </div>
                 <a
                   href="/tenant-property"
-                  className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                  className={`inline-flex items-center justify-center ${HOMEPAGE_PRIMARY_BUTTON} ${BUTTON_THEME.solid}`}
                 >
                   Isi Detail Properti
                 </a>

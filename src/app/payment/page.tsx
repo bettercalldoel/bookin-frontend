@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
 
+type PaymentMethod = "MANUAL_TRANSFER" | "XENDIT";
+
 const formatIDR = (value: string) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return value;
@@ -42,16 +44,28 @@ function PaymentContent() {
   const roomName = searchParams.get("roomName") ?? "";
   const checkIn = searchParams.get("checkIn") ?? "";
   const checkOut = searchParams.get("checkOut") ?? "";
+  const paymentMethod = (searchParams.get("paymentMethod") ??
+    "MANUAL_TRANSFER") as PaymentMethod;
+  const xenditInvoiceUrl = searchParams.get("xenditInvoiceUrl") ?? "";
 
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [redirectingToGateway, setRedirectingToGateway] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
 
-  const canUpload = Boolean(bookingId && proofFile && !uploading);
+  const isManualTransfer = paymentMethod !== "XENDIT";
+  const canUpload = Boolean(bookingId && proofFile && !uploading && isManualTransfer);
 
   const handleUploadProof = async () => {
+    if (!isManualTransfer) {
+      setUploadError(
+        "Booking ini menggunakan Xendit. Lanjutkan pembayaran melalui gateway.",
+      );
+      return;
+    }
+
     if (!bookingId) {
       setUploadError("Booking ID tidak ditemukan. Ulangi dari halaman konfirmasi.");
       return;
@@ -107,6 +121,18 @@ function PaymentContent() {
     }
   };
 
+  const handleOpenXenditInvoice = () => {
+    if (!xenditInvoiceUrl) {
+      setUploadError(
+        "URL invoice Xendit tidak tersedia. Silakan ulangi booking dari halaman sebelumnya.",
+      );
+      return;
+    }
+
+    setRedirectingToGateway(true);
+    window.location.href = xenditInvoiceUrl;
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-12">
       <div className="mx-auto w-full max-w-3xl space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-100">
@@ -137,6 +163,12 @@ function PaymentContent() {
             </span>
           </div>
           <div className="flex items-center justify-between">
+            <span>Metode</span>
+            <span className="font-semibold text-slate-900">
+              {isManualTransfer ? "Transfer Manual" : "Payment Gateway Xendit"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
             <span>Batas pembayaran</span>
             <span className="font-semibold text-slate-900">
               {paymentDueAt ? formatDateTime(paymentDueAt) : "-"}
@@ -146,51 +178,88 @@ function PaymentContent() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <p className="font-semibold text-slate-900">Instruksi pembayaran</p>
           <ul className="mt-2 list-disc pl-4 text-sm text-slate-600">
-            <li>Transfer sesuai total ke rekening yang ditentukan.</li>
-            <li>Upload bukti transfer di bawah ini.</li>
-            <li>Booking akan diproses setelah pembayaran terverifikasi tenant.</li>
+            {isManualTransfer ? (
+              <>
+                <li>Transfer sesuai total ke rekening yang ditentukan.</li>
+                <li>Upload bukti transfer di bawah ini.</li>
+                <li>Booking akan diproses setelah pembayaran terverifikasi tenant.</li>
+              </>
+            ) : (
+              <>
+                <li>Klik tombol bayar untuk lanjut ke halaman Xendit.</li>
+                <li>Pilih channel pembayaran yang tersedia di Xendit.</li>
+                <li>Status booking otomatis terupdate saat pembayaran sukses.</li>
+              </>
+            )}
           </ul>
         </div>
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">
-              Upload Bukti Transfer
-            </p>
-            <p className="text-xs text-slate-500">
-              Format: JPG/JPEG/PNG, maksimal 1MB.
-            </p>
-          </div>
+          {isManualTransfer ? (
+            <>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  Upload Bukti Transfer
+                </p>
+                <p className="text-xs text-slate-500">
+                  Format: JPG/JPEG/PNG, maksimal 1MB.
+                </p>
+              </div>
 
-          {!bookingId ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              Booking ID tidak tersedia. Ulangi proses dari halaman konfirmasi
-              booking.
-            </div>
+              {!bookingId ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  Booking ID tidak tersedia. Ulangi proses dari halaman konfirmasi
+                  booking.
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    onChange={(event) => {
+                      const nextFile = event.target.files?.[0] ?? null;
+                      setProofFile(nextFile);
+                      setUploadError(null);
+                      setUploadSuccess(null);
+                    }}
+                    className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+                  />
+                  {proofFile ? (
+                    <p className="text-xs text-slate-500">File: {proofFile.name}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleUploadProof}
+                    disabled={!canUpload}
+                    className={`rounded-2xl px-4 py-2 text-sm font-semibold text-white transition ${
+                      canUpload ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300"
+                    }`}
+                  >
+                    {uploading ? "Mengunggah..." : "Upload Bukti Pembayaran"}
+                  </button>
+                </>
+              )}
+            </>
           ) : (
             <>
-              <input
-                type="file"
-                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                onChange={(event) => {
-                  const nextFile = event.target.files?.[0] ?? null;
-                  setProofFile(nextFile);
-                  setUploadError(null);
-                  setUploadSuccess(null);
-                }}
-                className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
-              />
-              {proofFile ? (
-                <p className="text-xs text-slate-500">File: {proofFile.name}</p>
-              ) : null}
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  Lanjutkan pembayaran gateway
+                </p>
+                <p className="text-xs text-slate-500">
+                  Setelah pembayaran sukses, status booking akan diproses otomatis.
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={handleUploadProof}
-                disabled={!canUpload}
+                onClick={handleOpenXenditInvoice}
+                disabled={redirectingToGateway || !xenditInvoiceUrl}
                 className={`rounded-2xl px-4 py-2 text-sm font-semibold text-white transition ${
-                  canUpload ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300"
+                  xenditInvoiceUrl
+                    ? "bg-slate-900 hover:bg-slate-800"
+                    : "bg-slate-300"
                 }`}
               >
-                {uploading ? "Mengunggah..." : "Upload Bukti Pembayaran"}
+                {redirectingToGateway ? "Mengarahkan..." : "Bayar via Xendit"}
               </button>
             </>
           )}

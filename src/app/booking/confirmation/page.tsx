@@ -49,6 +49,8 @@ type AvailabilityResponse = {
   items: AvailabilityItem[];
 };
 
+type PaymentMethod = "MANUAL_TRANSFER" | "XENDIT";
+
 export default function BookingConfirmationPage() {
   return (
     <Suspense fallback={null}>
@@ -79,7 +81,7 @@ function BookingConfirmationContent() {
     name: "",
     email: "",
     phone: "",
-    paymentMethod: "MANUAL_TRANSFER",
+    paymentMethod: "MANUAL_TRANSFER" as PaymentMethod,
   });
 
   const totalGuests = adults + children;
@@ -147,7 +149,8 @@ function BookingConfirmationContent() {
     form.name.trim().length > 0 &&
     form.email.trim().length > 0 &&
     form.phone.trim().length > 0 &&
-    form.paymentMethod === "MANUAL_TRANSFER" &&
+    (form.paymentMethod === "MANUAL_TRANSFER" ||
+      form.paymentMethod === "XENDIT") &&
     totalGuests > 0 &&
     nights > 0;
 
@@ -175,17 +178,29 @@ function BookingConfirmationContent() {
           checkOut,
           guests: totalGuests,
           rooms: 1,
+          paymentMethod: form.paymentMethod,
         }),
       });
-      const payload = await response.json().catch(() => ({}));
+      const payload = (await response.json().catch(() => ({}))) as {
+        id?: string;
+        orderNo?: string;
+        totalAmount?: string;
+        paymentDueAt?: string;
+        paymentMethod?: PaymentMethod;
+        xenditInvoiceUrl?: string | null;
+        message?: string;
+      };
       if (!response.ok) {
         throw new Error(payload.message || "Gagal membuat booking.");
       }
+      const paymentMethod = payload.paymentMethod ?? form.paymentMethod;
       const params = new URLSearchParams({
         bookingId: payload.id ?? "",
         orderNo: payload.orderNo ?? "",
         total: payload.totalAmount ?? "",
         paymentDueAt: payload.paymentDueAt ?? "",
+        paymentMethod,
+        xenditInvoiceUrl: payload.xenditInvoiceUrl ?? "",
         propertyName,
         roomName,
         checkIn,
@@ -265,15 +280,13 @@ function BookingConfirmationContent() {
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    paymentMethod: event.target.value,
+                    paymentMethod: event.target.value as PaymentMethod,
                   }))
                 }
                 className="h-11 rounded-2xl border border-slate-200 px-4 text-sm"
               >
                 <option value="MANUAL_TRANSFER">Transfer Manual</option>
-                <option value="COMING_SOON" disabled>
-                  Coming soon
-                </option>
+                <option value="XENDIT">Payment Gateway (Xendit)</option>
               </select>
             </label>
           </div>

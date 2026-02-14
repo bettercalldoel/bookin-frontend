@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { API_BASE_URL, apiFetch } from "@/lib/api";
 import { clearAuthToken, getAuthToken } from "@/lib/auth-client";
 import {
   BUTTON_THEME,
@@ -52,7 +52,11 @@ const slides = [
   },
 ];
 
-const DESTINATION_DEBOUNCE_MS = 350;
+type PublicCity = {
+  id: string;
+  name: string;
+  province?: string | null;
+};
 
 const properties = [
   {
@@ -99,6 +103,21 @@ const properties = [
   },
 ];
 
+const propertyVisuals = [
+  {
+    gradient: "from-emerald-100 via-white to-cyan-100",
+    glow: "bg-[radial-gradient(circle_at_top,rgba(20,184,166,0.28),transparent_62%)]",
+  },
+  {
+    gradient: "from-amber-100 via-white to-orange-100",
+    glow: "bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.26),transparent_62%)]",
+  },
+  {
+    gradient: "from-sky-100 via-white to-blue-100",
+    glow: "bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.24),transparent_62%)]",
+  },
+] as const;
+
 const formatLocalDate = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -106,14 +125,24 @@ const formatLocalDate = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-const getDefaultDateRange = () => {
+const getDefaultSearchForm = () => {
   const start = new Date();
-  const end = new Date();
-  end.setDate(start.getDate() + 2);
   return {
+    cityId: "",
     startDate: formatLocalDate(start),
-    endDate: formatLocalDate(end),
+    nights: 2,
+    adults: 2,
+    children: 0,
+    rooms: 1,
   };
+};
+
+const addDays = (value: string, days: number) => {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + days);
+  return formatLocalDate(date);
 };
 
 export default function Home() {
@@ -127,29 +156,8 @@ export default function Home() {
   const userMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   const isTenant = userType === "TENANT";
-  const [destinationInput, setDestinationInput] = useState("");
-  const [searchForm, setSearchForm] = useState(() => {
-    const defaults = getDefaultDateRange();
-    return {
-      locTerm: "",
-      startDate: defaults.startDate,
-      endDate: defaults.endDate,
-      adults: 2,
-      children: 0,
-      rooms: 1,
-    };
-  });
-
-  useEffect(() => {
-    const debounceId = window.setTimeout(() => {
-      const normalized = destinationInput.trim();
-      setSearchForm((prev) =>
-        prev.locTerm === normalized ? prev : { ...prev, locTerm: normalized },
-      );
-    }, DESTINATION_DEBOUNCE_MS);
-
-    return () => window.clearTimeout(debounceId);
-  }, [destinationInput]);
+  const [searchForm, setSearchForm] = useState(() => getDefaultSearchForm());
+  const [publicCities, setPublicCities] = useState<PublicCity[]>([]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -193,20 +201,54 @@ export default function Home() {
   }, [isUserMenuOpen]);
 
   const handleSearchSubmit = () => {
-    const destination = destinationInput.trim();
     const params = new URLSearchParams();
-    params.set("lat", "");
-    params.set("lng", "");
-    params.set("country", "");
+    if (searchForm.cityId) {
+      params.set("city_id", searchForm.cityId);
+    }
     params.set("start_date", searchForm.startDate);
-    params.set("end_date", searchForm.endDate);
+    const nights = Math.max(1, Math.min(30, searchForm.nights));
+    params.set("nights", String(nights));
+    const endDate = addDays(searchForm.startDate, nights);
+    if (endDate) {
+      params.set("end_date", endDate);
+    }
     params.set("adults", String(searchForm.adults));
     params.set("children", String(searchForm.children));
     params.set("rooms", String(searchForm.rooms));
-    params.set("loc_term", destination);
     params.set("page", "1");
     router.push(`/search?${params.toString()}`);
   };
+
+  useEffect(() => {
+    const loadPublicCities = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/properties/cities?limit=300`);
+        if (!response.ok) return;
+        const payload = (await response.json()) as PublicCity[];
+        if (!Array.isArray(payload)) return;
+        setPublicCities(
+          payload
+            .filter((item): item is PublicCity => {
+              return (
+                typeof item?.id === "string" &&
+                item.id.trim().length > 0 &&
+                typeof item?.name === "string" &&
+                item.name.trim().length > 0
+              );
+            })
+            .map((item) => ({
+              id: item.id,
+              name: item.name.trim(),
+              province: item.province?.trim() || null,
+            })),
+        );
+      } catch {
+        setPublicCities([]);
+      }
+    };
+
+    loadPublicCities();
+  }, []);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -270,23 +312,32 @@ export default function Home() {
         { label: "Properti", href: "#properties" },
         { label: "Bantuan", href: "#support" },
       ];
+  const selectedCity =
+    publicCities.find((city) => city.id === searchForm.cityId) ?? null;
+  const estimatedCheckOut = addDays(
+    searchForm.startDate,
+    Math.max(1, searchForm.nights),
+  );
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900">
-      <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/70 blur-3xl" />
-      <div className="pointer-events-none absolute left-0 top-1/2 h-80 w-80 -translate-y-1/2 rounded-full bg-sky-200/70 blur-3xl" />
+    <div className="relative min-h-screen overflow-x-hidden bg-transparent text-slate-900">
+      <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/60 blur-3xl" />
+      <div className="pointer-events-none absolute left-0 top-1/2 h-80 w-80 -translate-y-1/2 rounded-full bg-cyan-200/55 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-10 right-1/3 h-64 w-64 rounded-full bg-amber-200/35 blur-3xl" />
       <div className="pointer-events-none absolute inset-0 bg-grid-slate" />
 
       <header className="fixed inset-x-0 top-0 z-[200]">
-        <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6 md:rounded-full md:border md:border-white/60 md:bg-white/70 md:shadow-lg md:shadow-slate-200/70 md:backdrop-blur">
+        <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6 md:rounded-full md:border md:border-white/65 md:bg-white/78 md:shadow-[0_20px_40px_-28px_rgba(15,23,42,0.55)] md:backdrop-blur">
           <div>
-            <p className="text-lg font-semibold">BookIn</p>
+            <p className="font-display text-xl font-semibold text-slate-900">
+              BookIn
+            </p>
           </div>
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
             {navItems.map((item) => (
               <a
                 key={item.label}
-                className="transition hover:text-slate-900"
+                className="transition hover:text-cyan-800"
                 href={item.href}
               >
                 {item.label}
@@ -296,13 +347,13 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 transition hover:border-slate-300 hover:text-slate-900 md:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900 md:hidden"
               aria-label="Buka menu"
             >
               <span className="flex flex-col gap-1.5">
-                <span className="h-0.5 w-5 rounded-full bg-slate-900" />
-                <span className="h-0.5 w-5 rounded-full bg-slate-900" />
-                <span className="h-0.5 w-5 rounded-full bg-slate-900" />
+                <span className="h-0.5 w-5 rounded-full bg-cyan-900" />
+                <span className="h-0.5 w-5 rounded-full bg-cyan-900" />
+                <span className="h-0.5 w-5 rounded-full bg-cyan-900" />
               </span>
             </button>
             {userName ? (
@@ -311,14 +362,14 @@ export default function Home() {
                 data-user-menu
                 className="relative hidden items-center gap-2 md:flex"
               >
-                <span className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+                <span className="rounded-full bg-linear-to-r from-cyan-900 to-teal-800 px-4 py-2 text-sm font-semibold text-white shadow-sm">
                   Hello, {userName}
                 </span>
                 <button
                   type="button"
                   ref={userMenuButtonRef}
                   onClick={() => setIsUserMenuOpen((current) => !current)}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-cyan-300 hover:text-cyan-900"
                 >
                   Menu
                 </button>
@@ -326,7 +377,7 @@ export default function Home() {
                   ? createPortal(
                       <div
                         data-user-menu
-                        className="fixed z-[1000] w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                        className="fixed z-[1000] w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-900/15"
                         style={{
                           top: menuPosition.top,
                           right: menuPosition.right,
@@ -335,24 +386,24 @@ export default function Home() {
                         {isTenant ? (
                           <a
                             href="/tenant-dashboard"
-                            className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-cyan-50"
                           >
                             Dashboard Tenant
                           </a>
                         ) : (
                           <>
-                            <a
-                              href="/profile"
-                              className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                            >
-                              My Profile
-                            </a>
-                            <a
-                              href="/my-transaction"
-                              className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                            >
-                              My Transaction
-                            </a>
+                              <a
+                                href="/profile"
+                                className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-cyan-50"
+                              >
+                                My Profile
+                              </a>
+                              <a
+                                href="/my-transaction"
+                                className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-cyan-50"
+                              >
+                                My Transaction
+                              </a>
                           </>
                         )}
                         <button
@@ -370,7 +421,7 @@ export default function Home() {
             ) : (
               <a
                 href="/login"
-                className="hidden rounded-full border border-slate-200 px-5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 md:inline-flex"
+                className="hidden rounded-full border border-slate-200 px-5 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900 md:inline-flex"
               >
                 Masuk
               </a>
@@ -390,7 +441,7 @@ export default function Home() {
         aria-hidden={!isSidebarOpen}
       />
       <aside
-        className={`fixed right-0 top-0 z-30 h-full w-72 border-l border-slate-200 bg-white/90 px-5 py-6 shadow-xl backdrop-blur transition-transform ${
+        className={`fixed right-0 top-0 z-30 h-full w-72 border-l border-slate-200 bg-white/92 px-5 py-6 shadow-xl backdrop-blur transition-transform ${
           isSidebarOpen ? "translate-x-0" : "translate-x-full"
         }`}
         aria-hidden={!isSidebarOpen}
@@ -398,7 +449,7 @@ export default function Home() {
         <div className="flex items-center justify-end">
           <button
             onClick={handleCloseSidebar}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-cyan-300 hover:text-cyan-900"
             aria-label="Tutup menu"
           >
             ✕
@@ -410,7 +461,7 @@ export default function Home() {
               key={item.label}
               href={item.href}
               onClick={handleCloseSidebar}
-              className="rounded-2xl border border-transparent px-3 py-2 transition hover:border-slate-200 hover:bg-slate-50"
+              className="rounded-2xl border border-transparent px-3 py-2 transition hover:border-cyan-200 hover:bg-cyan-50"
             >
               {item.label}
             </a>
@@ -419,7 +470,7 @@ export default function Home() {
         <div className="mt-6">
           {userName ? (
             <div className="space-y-2">
-              <div className="rounded-full bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white">
+              <div className="rounded-full bg-linear-to-r from-cyan-900 to-teal-800 px-4 py-2 text-center text-sm font-semibold text-white">
                 Hello, {userName}
               </div>
 
@@ -427,7 +478,7 @@ export default function Home() {
                 <a
                   href="/tenant-dashboard"
                   onClick={handleCloseSidebar}
-                  className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                  className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900"
                 >
                   Dashboard Tenant
                 </a>
@@ -436,14 +487,14 @@ export default function Home() {
                   <a
                     href="/profile"
                     onClick={handleCloseSidebar}
-                    className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                    className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900"
                   >
                     My Profile
                   </a>
                   <a
                     href="/my-transaction"
                     onClick={handleCloseSidebar}
-                    className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                    className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900"
                   >
                     My Transaction
                   </a>
@@ -456,7 +507,7 @@ export default function Home() {
                   handleCloseSidebar();
                   handleLogout();
                 }}
-                className="w-full rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                className="w-full rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-cyan-300 hover:text-cyan-900"
               >
                 Logout
               </button>
@@ -464,7 +515,7 @@ export default function Home() {
           ) : (
             <a
               href="/login"
-              className="w-full rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+              className="w-full rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900"
             >
               Masuk
             </a>
@@ -475,8 +526,8 @@ export default function Home() {
       <main className="relative z-0 pt-24 md:pt-28">
         <section id="hero" className="mx-auto w-full max-w-6xl px-6 pb-16 pt-8">
           <div className="flex flex-col gap-12">
-            <div className="relative">
-              <div className="rounded-4xl border border-slate-200/80 bg-linear-to-br from-white/95 via-slate-50 to-slate-100/80 p-7 shadow-2xl shadow-slate-200/80 backdrop-blur">
+            <div className="relative animate-rise-in">
+              <div className="surface-panel rounded-4xl p-7 backdrop-blur">
                 <div className="flex items-center justify-between">
                   <div />
                 </div>
@@ -502,9 +553,9 @@ export default function Home() {
                       <div className="relative z-10 flex h-full flex-col justify-between drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]">
                         <div className="space-y-3">
                           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/70">
-                        
+                            Pilihan Editor
                           </p>
-                          <h2 className="text-2xl font-semibold leading-tight">
+                          <h2 className="font-display text-3xl leading-tight md:text-4xl">
                             {slide.title}
                           </h2>
                           <p className="text-sm text-white/85">{slide.subtitle}</p>
@@ -535,8 +586,8 @@ export default function Home() {
                         onClick={() => setActiveSlide(index)}
                         className={`h-2.5 w-8 rounded-full transition ${
                           index === activeSlide
-                            ? "bg-slate-900"
-                            : "bg-slate-200"
+                            ? "bg-cyan-800"
+                            : "bg-slate-300"
                         }`}
                         aria-label={`Slide ${index + 1}`}
                       />
@@ -558,7 +609,10 @@ export default function Home() {
                 ].map((item) => (
                   <div
                     key={item.title}
-                    className="rounded-2xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/80 px-5 py-4 shadow-md shadow-slate-200/80"
+                    className="surface-panel animate-rise-in rounded-2xl px-5 py-4"
+                    style={{
+                      animationDelay: item.title === "1200+" ? "90ms" : "170ms",
+                    }}
                   >
                     <p className="text-xl font-semibold text-slate-900">
                       {item.title}
@@ -574,18 +628,24 @@ export default function Home() {
         {!isTenant ? (
           <>
             <section id="search" className="mx-auto w-full max-w-6xl px-6 pb-16">
-              <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-8 shadow-2xl shadow-slate-200/70">
+              <div className="surface-panel animate-rise-in rounded-3xl p-8">
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
                       Form destinasi
                     </p>
-                    <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                    <h2 className="font-display mt-2 text-3xl text-slate-900">
                       Pilih kota tujuan dan tanggal perjalanan Anda
                     </h2>
                     <p className="mt-2 text-sm text-slate-500">
                       Gunakan kalender untuk memilih tanggal berangkat serta durasi menginap.
                     </p>
+                    {selectedCity && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Destinasi terpilih: {selectedCity.name}
+                        {selectedCity.province ? `, ${selectedCity.province}` : ""}
+                      </p>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -606,17 +666,27 @@ export default function Home() {
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                       Kota destinasi
                     </label>
-                    <input
-                      type="text"
-                      value={destinationInput}
-                      onChange={(event) => setDestinationInput(event.target.value)}
-                      placeholder="Masukkan kota tujuan"
+                    <select
+                      value={searchForm.cityId}
+                      onChange={(event) =>
+                        setSearchForm((prev) => ({
+                          ...prev,
+                          cityId: event.target.value,
+                        }))
+                      }
                       className={`h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm ${INPUT_THEME.focus}`}
-                    />
+                    >
+                      <option value="">Semua kota</option>
+                      {publicCities.map((city) => (
+                        <option key={city.id} value={city.id}>
+                          {city.province ? `${city.name}, ${city.province}` : city.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Check-in
+                      Tanggal berangkat
                     </label>
                     <input
                       type="date"
@@ -632,19 +702,29 @@ export default function Home() {
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Check-out
+                      Durasi
                     </label>
-                    <input
-                      type="date"
-                      value={searchForm.endDate}
+                    <select
+                      value={String(searchForm.nights)}
                       onChange={(event) =>
                         setSearchForm((prev) => ({
                           ...prev,
-                          endDate: event.target.value,
+                          nights: Math.max(1, Number(event.target.value) || 1),
                         }))
                       }
                       className={`h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm ${INPUT_THEME.focus}`}
-                    />
+                    >
+                      {Array.from({ length: 30 }, (_, index) => index + 1).map(
+                        (night) => (
+                          <option key={night} value={night}>
+                            {night} malam
+                          </option>
+                        ),
+                      )}
+                    </select>
+                    <p className="text-xs text-slate-500">
+                      Check-out: {estimatedCheckOut || "-"}
+                    </p>
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -704,27 +784,32 @@ export default function Home() {
             <section id="properties" className="mx-auto w-full max-w-6xl px-6 pb-16">
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-700">
                     Property list
                   </p>
-                  <h2 className="mt-2 text-3xl font-semibold text-slate-900">
+                  <h2 className="font-display mt-2 text-4xl text-slate-900">
                     Properti pilihan dengan lokasi strategis
                   </h2>
                 </div>
-                <button className="rounded-full border border-slate-200 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900">
+                <button className="rounded-full border border-slate-200 bg-white/80 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900">
                   Lihat semua properti
                 </button>
               </div>
 
               <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {properties.map((property) => (
+                {properties.map((property, index) => (
                   <article
                     key={property.name}
-                    className="group rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/80 p-5 shadow-md shadow-slate-200/70 transition hover:-translate-y-1 hover:shadow-xl"
+                    className="surface-panel animate-rise-in group rounded-3xl p-5 transition hover:-translate-y-1 hover:shadow-xl"
+                    style={{ animationDelay: `${index * 70}ms` }}
                   >
-                    <div className="relative h-40 overflow-hidden rounded-2xl bg-linear-to-br from-slate-100 via-white to-slate-200">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(20,184,166,0.25),transparent_60%)]" />
-                      <div className="absolute bottom-4 left-4 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                    <div
+                      className={`relative h-40 overflow-hidden rounded-2xl bg-linear-to-br ${propertyVisuals[index % propertyVisuals.length].gradient}`}
+                    >
+                      <div
+                        className={`absolute inset-0 ${propertyVisuals[index % propertyVisuals.length].glow}`}
+                      />
+                      <div className="absolute bottom-4 left-4 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
                         {property.tag}
                       </div>
                     </div>
@@ -743,17 +828,17 @@ export default function Home() {
                           {property.rating}
                         </div>
                       </div>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-cyan-900">
                         {property.price}
                       </p>
                       <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                        <span className="rounded-full border border-slate-200 px-3 py-1">
+                        <span className="rounded-full border border-cyan-100 bg-white/90 px-3 py-1">
                           Sarapan
                         </span>
-                        <span className="rounded-full border border-slate-200 px-3 py-1">
+                        <span className="rounded-full border border-cyan-100 bg-white/90 px-3 py-1">
                           Wi-Fi
                         </span>
-                        <span className="rounded-full border border-slate-200 px-3 py-1">
+                        <span className="rounded-full border border-cyan-100 bg-white/90 px-3 py-1">
                           Free cancel
                         </span>
                       </div>
@@ -765,13 +850,13 @@ export default function Home() {
           </>
         ) : (
           <section id="lease" className="mx-auto w-full max-w-6xl px-6 pb-16">
-            <div className="rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-8 shadow-2xl shadow-slate-200/70">
+            <div className="surface-panel animate-rise-in rounded-3xl p-8">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
                     Sewakan Properti
                   </p>
-                  <h2 className="text-2xl font-semibold text-slate-900">
+                  <h2 className="font-display text-3xl text-slate-900">
                     Kelola properti dan jadwal ketersediaan Anda dalam satu
                     dashboard
                   </h2>
@@ -804,7 +889,7 @@ export default function Home() {
                 ].map((item) => (
                   <div
                     key={item.title}
-                    className="rounded-2xl border border-slate-200/80 bg-white/80 px-5 py-4 shadow-sm"
+                    className="rounded-2xl border border-slate-200/80 bg-white/88 px-5 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <p className="text-sm font-semibold text-slate-900">
                       {item.title}
@@ -818,10 +903,13 @@ export default function Home() {
         )}
       </main>
 
-      <footer id="support" className="relative z-10 border-t border-slate-200 bg-white/80">
+      <footer
+        id="support"
+        className="relative z-10 border-t border-slate-200 bg-white/82 backdrop-blur"
+      >
         <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-12 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-3">
-            <p className="text-lg font-semibold text-slate-900">Tentang BookIn</p>
+            <p className="font-display text-2xl text-slate-900">Tentang BookIn</p>
             <p className="text-sm text-slate-500">
               Aplikasi pemesanan akomodasi dengan kurasi properti terbaik dan proses
               booking yang transparan.

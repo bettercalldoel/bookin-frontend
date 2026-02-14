@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
 import { BUTTON_THEME, INPUT_THEME } from "@/lib/button-theme";
+import { formatDateDDMMYYYY } from "@/lib/date-format";
 import ConfirmModal from "@/components/ui/confirm-modal";
 
 type DashboardUser = {
@@ -33,6 +34,18 @@ type TenantProperty = {
   coverUrl?: string | null;
   galleryUrls?: string[];
   rooms: TenantRoom[];
+};
+
+type TenantPropertyListResponse = {
+  data: TenantProperty[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext?: boolean;
+    hasPrev?: boolean;
+  };
 };
 
 type AvailabilityItem = {
@@ -111,8 +124,11 @@ type TenantPaymentProof = {
 type TenantOrderRow = {
   id: string;
   orderNo: string;
+  submittedAt: string;
   checkIn: string;
+  propertyId: string;
   property: string;
+  userId: string;
   user: string;
   nights: number;
   status: BookingStatus;
@@ -120,6 +136,71 @@ type TenantOrderRow = {
   paymentProofId: string;
   paymentProofStatus: PaymentProofStatus;
   paymentProofImageUrl: string;
+};
+
+type SalesTransactionRow = {
+  id: string;
+  orderNo: string;
+  submittedAt: string | null;
+  checkIn: string | null;
+  propertyId: string;
+  property: string;
+  userId: string;
+  user: string;
+  status: BookingStatus;
+  total: number;
+};
+
+type SalesPropertyRow = {
+  propertyId: string;
+  propertyName: string;
+  transactions: number;
+  users: number;
+  totalSales: number;
+  latestTransactionAt: string | null;
+};
+
+type SalesTrendRow = {
+  month: string;
+  sales: number;
+  bookings: number;
+};
+
+type SalesSummary = {
+  totalSales: number;
+  totalTransactions: number;
+  avgPerTransaction: number;
+};
+
+type SalesMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+  view: "transaction" | "property" | "user";
+  sortBy: "date" | "total";
+  sortOrder: "asc" | "desc";
+  startDate: string | null;
+  endDate: string | null;
+  keyword: string | null;
+};
+
+type SalesReportResponse = {
+  data: Array<SalesTransactionRow | SalesPropertyRow | SalesUserRow>;
+  summary: SalesSummary;
+  trend: SalesTrendRow[];
+  meta: SalesMeta;
+};
+
+type SalesUserRow = {
+  userId: string;
+  userName: string;
+  transactions: number;
+  properties: number;
+  totalSales: number;
+  latestTransactionAt: string | null;
 };
 
 type TenantReview = {
@@ -165,7 +246,6 @@ type NavKey =
   | "order-management"
   | "customer-relations"
   | "sales-report"
-  | "property-report"
   | "dashboard-overview";
 
 type NavItem = {
@@ -270,19 +350,9 @@ const navGroups: NavGroup[] = [
     title: "Property & Room",
     items: [
       {
-        key: "property-category",
-        label: "Property Category",
-        helper: "Tambah, lihat, hapus kategori",
-      },
-      {
         key: "property-management",
-        label: "Property Management",
-        helper: "Daftar properti & room",
-      },
-      {
-        key: "room-management",
-        label: "Room Management",
-        helper: "Availability & dynamic pricing",
+        label: "Properties & Rooms",
+        helper: "Daftar properti, room, dan kalender",
       },
     ],
   },
@@ -311,13 +381,8 @@ const navGroups: NavGroup[] = [
     items: [
       {
         key: "sales-report",
-        label: "Sales Report",
-        helper: "Laporan berdasarkan transaksi",
-      },
-      {
-        key: "property-report",
-        label: "Property Report",
-        helper: "Kalender ketersediaan properti",
+        label: "Report & Analysis",
+        helper: "Sales dan availability properti",
       },
     ],
   },
@@ -371,7 +436,6 @@ const renderNavIcon = (key: NavKey) => {
         </svg>
       );
     case "sales-report":
-    case "property-report":
       return (
         <svg viewBox="0 0 24 24" className={baseClass} fill="none" stroke="currentColor">
           <path d="M4 20H20M7 16V11M12 16V7M17 16V13" strokeWidth="1.8" strokeLinecap="round" />
@@ -384,6 +448,27 @@ const renderNavIcon = (key: NavKey) => {
 
 const overviewMonthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"];
 
+const defaultSalesSummary: SalesSummary = {
+  totalSales: 0,
+  totalTransactions: 0,
+  avgPerTransaction: 0,
+};
+
+const defaultSalesMeta: SalesMeta = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+  hasNext: false,
+  hasPrev: false,
+  view: "transaction",
+  sortBy: "date",
+  sortOrder: "desc",
+  startDate: null,
+  endDate: null,
+  keyword: null,
+};
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -392,13 +477,7 @@ const formatCurrency = (value: number) =>
   }).format(value);
 
 const formatDateTime = (value: string | null) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return formatDateDDMMYYYY(value);
 };
 
 const formatBookingStatus = (status: BookingStatus) => {
@@ -538,8 +617,11 @@ const mapPaymentProofsToOrders = (proofs: TenantPaymentProof[]): TenantOrderRow[
     orderMap.set(proof.booking.id, {
       id: proof.booking.id,
       orderNo: proof.booking.orderNo,
+      submittedAt: proof.submittedAt,
       checkIn: proof.booking.checkIn,
+      propertyId: proof.booking.property.id,
       property: proof.booking.property.name,
+      userId: proof.user.id,
       user: proof.user.fullName ?? proof.user.email,
       nights: countNights(proof.booking.checkIn, proof.booking.checkOut),
       status: proof.booking.status,
@@ -550,7 +632,9 @@ const mapPaymentProofsToOrders = (proofs: TenantPaymentProof[]): TenantOrderRow[
     });
   });
 
-  return Array.from(orderMap.values());
+  return Array.from(orderMap.values()).sort(
+    (a, b) => toTimestamp(b.submittedAt) - toTimestamp(a.submittedAt),
+  );
 };
 
 const toTrendChart = (
@@ -620,11 +704,24 @@ const fetchJson = async <T,>(
     headers,
   });
 
-  const data = await response.json().catch(() => ({}));
+  const raw = await response.text();
+  let data: unknown = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw) as unknown;
+    } catch {
+      data = { message: raw };
+    }
+  }
 
   if (!response.ok) {
+    const parsed =
+      typeof data === "object" && data !== null
+        ? (data as { message?: string })
+        : {};
     const message =
-      (data as { message?: string }).message || "Permintaan gagal.";
+      parsed.message ||
+      `Permintaan gagal (${response.status} ${response.statusText}).`;
     throw new Error(message);
   }
 
@@ -642,33 +739,6 @@ const normalizeTenantActionError = (message: string) => {
 
   return message;
 };
-
-const mockSales = [
-  {
-    id: "TX-1024",
-    property: "Serenity Villas",
-    user: "Anisa Rahman",
-    date: "2026-01-25",
-    total: 1850000,
-    status: "Diproses",
-  },
-  {
-    id: "TX-1025",
-    property: "Skyline Suites",
-    user: "Kevin Hartono",
-    date: "2026-01-26",
-    total: 2450000,
-    status: "Selesai",
-  },
-  {
-    id: "TX-1026",
-    property: "Garden Stay",
-    user: "Raka Putra",
-    date: "2026-01-27",
-    total: 920000,
-    status: "Menunggu Pembayaran",
-  },
-];
 
 const propertyCardVisuals = [
   {
@@ -701,6 +771,7 @@ const reportWeekdayLabels = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
 export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const [active, setActive] = useState<NavKey>("dashboard-overview");
+  const [reportTab, setReportTab] = useState<"sales" | "property">("sales");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [headerSearch, setHeaderSearch] = useState("");
@@ -710,7 +781,20 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     "transaction",
   );
   const [sortBy, setSortBy] = useState<"date" | "total">("date");
+  const [salesSortOrder, setSalesSortOrder] = useState<"asc" | "desc">("desc");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [salesPage, setSalesPage] = useState(1);
+  const [salesLimit, setSalesLimit] = useState(10);
+  const [salesMeta, setSalesMeta] = useState<SalesMeta>(defaultSalesMeta);
+  const [salesSummary, setSalesSummary] = useState<SalesSummary>(defaultSalesSummary);
+  const [salesTrendData, setSalesTrendData] = useState<SalesTrendRow[]>([]);
+  const [salesTransactionRows, setSalesTransactionRows] = useState<SalesTransactionRow[]>(
+    [],
+  );
+  const [salesPropertyRows, setSalesPropertyRows] = useState<SalesPropertyRow[]>([]);
+  const [salesUserRows, setSalesUserRows] = useState<SalesUserRow[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ALL" | BookingStatus>(
     "ALL",
   );
@@ -755,6 +839,16 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const [properties, setProperties] = useState<TenantProperty[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(false);
   const [propertiesError, setPropertiesError] = useState<string | null>(null);
+  const [propertyReportPage, setPropertyReportPage] = useState(1);
+  const [propertyReportLimit, setPropertyReportLimit] = useState(10);
+  const [propertyReportMeta, setPropertyReportMeta] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+    hasNext: false,
+    hasPrev: false,
+  });
   const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -996,9 +1090,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       [order.orderNo, order.property, order.user, order.checkIn]
         .join(" ")
         .toLowerCase()
-        .includes(keyword),
+      .includes(keyword),
     );
   }, [filteredOrders, transactionSearch]);
+
+  const salesDateRangeInvalid = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return false;
+    return dateRange.from > dateRange.to;
+  }, [dateRange.from, dateRange.to]);
 
   const propertyCards = useMemo(() => {
     return properties.map((property, index) => {
@@ -1057,24 +1156,23 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     }));
   }, [catalogCategories, properties]);
 
-  const salesTrendData = useMemo(
-    () =>
-      overviewMonthLabels.map((month, index) => ({
-        month,
-        sales: overviewRevenueSeries[index] ?? 0,
-        bookings: overviewTrend[index]?.orders ?? 0,
-      })),
-    [overviewRevenueSeries, overviewTrend],
-  );
+  const salesTrendSeries = useMemo(() => {
+    if (salesTrendData.length > 0) return salesTrendData;
+    return overviewMonthLabels.map((month) => ({
+      month,
+      sales: 0,
+      bookings: 0,
+    }));
+  }, [salesTrendData]);
 
   const salesTrendMax = useMemo(
-    () => Math.max(...salesTrendData.map((item) => item.sales), 1),
-    [salesTrendData],
+    () => Math.max(...salesTrendSeries.map((item) => item.sales), 1),
+    [salesTrendSeries],
   );
 
   const bookingsTrendMax = useMemo(
-    () => Math.max(...salesTrendData.map((item) => item.bookings), 1),
-    [salesTrendData],
+    () => Math.max(...salesTrendSeries.map((item) => item.bookings), 1),
+    [salesTrendSeries],
   );
 
   const roomMonthLabel = useMemo(() => {
@@ -1159,9 +1257,6 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           : item.availableUnits <= 0
             ? "Booked"
             : "Available";
-      } else {
-        if (day % 6 === 0 || day % 7 === 0) status = "Booked";
-        if (day % 9 === 0) status = "Maintenance";
       }
       cells.push({ day, status });
     }
@@ -1176,6 +1271,25 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     }
     return weeks;
   }, [availabilityData, availabilityQuery.startDate]);
+
+  const availabilityStatusSummary = useMemo(() => {
+    const items = availabilityData?.items ?? [];
+    return items.reduce(
+      (acc, item) => {
+        if (item.isClosed) {
+          acc.maintenance += 1;
+          return acc;
+        }
+        if (item.availableUnits <= 0) {
+          acc.booked += 1;
+          return acc;
+        }
+        acc.available += 1;
+        return acc;
+      },
+      { available: 0, booked: 0, maintenance: 0 },
+    );
+  }, [availabilityData]);
 
   const overviewYAxisTicks = useMemo(() => {
     const maxValue = Math.max(overviewChart.maxValue, 1_000);
@@ -1227,36 +1341,98 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     };
   }, [roomActionType, roomAdjustmentType, roomAdjustmentValue, selectedRoom]);
 
-  const fetchProperties = async () => {
+  const mapTenantProperties = (items: TenantProperty[]) =>
+    items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description ?? null,
+      address: item.address ?? null,
+      categoryId: item.categoryId ?? null,
+      categoryName: item.categoryName ?? null,
+      cityName: item.cityName ?? null,
+      province: item.province ?? null,
+      coverUrl: item.coverUrl ?? null,
+      galleryUrls: Array.isArray(item.galleryUrls) ? item.galleryUrls : [],
+      rooms: (item.rooms ?? []).map((room: any) => ({
+        id: room.id,
+        name: room.name,
+        price: room.price,
+        totalUnits: room.totalUnits,
+        maxGuests: room.maxGuests,
+      })),
+    })) as TenantProperty[];
+
+  const fetchProperties = async ({
+    mode = "all",
+    page = 1,
+    limit = 50,
+  }: {
+    mode?: "all" | "page";
+    page?: number;
+    limit?: number;
+  } = {}) => {
     try {
       setPropertiesLoading(true);
       setPropertiesError(null);
-      const data = await fetchJson<any[]>("/properties");
-      const mapped = data.map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description ?? null,
-        address: item.address ?? null,
-        categoryId: item.categoryId ?? null,
-        categoryName: item.categoryName ?? null,
-        cityName: item.cityName ?? null,
-        province: item.province ?? null,
-        coverUrl: item.coverUrl ?? null,
-        galleryUrls: Array.isArray(item.galleryUrls) ? item.galleryUrls : [],
-        rooms: (item.rooms ?? []).map((room: any) => ({
-          id: room.id,
-          name: room.name,
-          price: room.price,
-          totalUnits: room.totalUnits,
-          maxGuests: room.maxGuests,
-        })),
-      })) as TenantProperty[];
+
+      if (mode === "page") {
+        const query = new URLSearchParams({
+          page: String(page),
+          limit: String(limit),
+        });
+        const response = await fetchJson<TenantPropertyListResponse>(
+          `/properties?${query.toString()}`,
+        );
+        setProperties(mapTenantProperties(response.data ?? []));
+        setPropertyReportMeta({
+          page: response.meta?.page ?? page,
+          limit: response.meta?.limit ?? limit,
+          total: response.meta?.total ?? 0,
+          totalPages: Math.max(1, response.meta?.totalPages ?? 1),
+          hasNext: Boolean(response.meta?.hasNext),
+          hasPrev: Boolean(response.meta?.hasPrev),
+        });
+        return;
+      }
+
+      let currentPage = 1;
+      let totalPages = 1;
+      const aggregated: TenantProperty[] = [];
+      do {
+        const query = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(limit),
+        });
+        const response = await fetchJson<TenantPropertyListResponse>(
+          `/properties?${query.toString()}`,
+        );
+        aggregated.push(...(response.data ?? []));
+        totalPages = Math.max(1, response.meta?.totalPages ?? 1);
+        currentPage += 1;
+      } while (currentPage <= totalPages);
+
+      const mapped = mapTenantProperties(aggregated);
       setProperties(mapped);
+      setPropertyReportMeta({
+        page: 1,
+        limit,
+        total: mapped.length,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      });
     } catch (err) {
       setPropertiesError(
         err instanceof Error ? err.message : "Gagal memuat properti.",
       );
       setProperties([]);
+      setPropertyReportMeta((prev) => ({
+        ...prev,
+        total: 0,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      }));
     } finally {
       setPropertiesLoading(false);
     }
@@ -1724,6 +1900,366 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     }
   };
 
+  const applySalesFallbackFromOverview = () => {
+    if (overviewOrders.length === 0) return false;
+
+    const fromTs = dateRange.from
+      ? new Date(`${dateRange.from}T00:00:00`).getTime()
+      : null;
+    const toTs = dateRange.to
+      ? new Date(`${dateRange.to}T23:59:59`).getTime()
+      : null;
+    const keyword = transactionSearch.trim().toLowerCase();
+
+    const filteredRows = overviewOrders.filter((row) => {
+      const ts = toTimestamp(row.submittedAt);
+      if (fromTs !== null && ts < fromTs) return false;
+      if (toTs !== null && ts > toTs) return false;
+      return true;
+    });
+
+    const totalSales = filteredRows.reduce((sum, row) => {
+      if (row.status === "DIBATALKAN") return sum;
+      return sum + row.total;
+    }, 0);
+    const totalTransactions = filteredRows.length;
+
+    const anchorBase = dateRange.to
+      ? new Date(`${dateRange.to}T00:00:00`)
+      : new Date();
+    const anchor = new Date(
+      Date.UTC(anchorBase.getFullYear(), anchorBase.getMonth(), 1),
+    );
+    const monthFormatter = new Intl.DateTimeFormat("id-ID", {
+      month: "short",
+      year: "2-digit",
+      timeZone: "UTC",
+    });
+
+    const trendBuckets = Array.from({ length: 7 }, (_, index) => {
+      const monthDate = new Date(
+        Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() - (6 - index), 1),
+      );
+      const key = `${monthDate.getUTCFullYear()}-${`${monthDate.getUTCMonth() + 1}`.padStart(2, "0")}`;
+      return {
+        key,
+        month: monthFormatter.format(monthDate),
+        sales: 0,
+        bookings: 0,
+      };
+    });
+    const trendMap = new Map(trendBuckets.map((bucket) => [bucket.key, bucket]));
+
+    filteredRows.forEach((row) => {
+      const ts = toTimestamp(row.submittedAt);
+      if (!ts) return;
+      const date = new Date(ts);
+      const key = `${date.getUTCFullYear()}-${`${date.getUTCMonth() + 1}`.padStart(2, "0")}`;
+      const bucket = trendMap.get(key);
+      if (!bucket) return;
+      bucket.bookings += 1;
+      if (row.status !== "DIBATALKAN") {
+        bucket.sales += row.total;
+      }
+    });
+
+    const sortFactor = salesSortOrder === "asc" ? 1 : -1;
+    const transactionRows = [...filteredRows];
+    transactionRows.sort((a, b) => {
+      if (sortBy === "total") {
+        if (a.total !== b.total) return sortFactor * (a.total - b.total);
+        return sortFactor * (toTimestamp(a.submittedAt) - toTimestamp(b.submittedAt));
+      }
+      const dateDiff = toTimestamp(a.submittedAt) - toTimestamp(b.submittedAt);
+      if (dateDiff !== 0) return sortFactor * dateDiff;
+      return sortFactor * (a.total - b.total);
+    });
+
+    let total = 0;
+    let pagedTransactionRows: SalesTransactionRow[] = [];
+    let pagedPropertyRows: SalesPropertyRow[] = [];
+    let pagedUserRows: SalesUserRow[] = [];
+
+    if (salesView === "transaction") {
+      const searched = keyword
+        ? transactionRows.filter((row) =>
+            [row.orderNo, row.property, row.user, row.submittedAt]
+              .join(" ")
+              .toLowerCase()
+              .includes(keyword),
+          )
+        : transactionRows;
+      total = searched.length;
+      const totalPages = Math.max(1, Math.ceil(total / salesLimit));
+      const page = Math.min(Math.max(1, salesPage), totalPages);
+      const start = (page - 1) * salesLimit;
+      const end = start + salesLimit;
+      pagedTransactionRows = searched.slice(start, end).map((row) => ({
+        id: row.id,
+        orderNo: row.orderNo,
+        submittedAt: row.submittedAt,
+        checkIn: row.checkIn,
+        propertyId: row.propertyId,
+        property: row.property,
+        userId: row.userId,
+        user: row.user,
+        status: row.status,
+        total: row.total,
+      }));
+
+      setSalesMeta({
+        page,
+        limit: salesLimit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        view: salesView,
+        sortBy,
+        sortOrder: salesSortOrder,
+        startDate: dateRange.from || null,
+        endDate: dateRange.to || null,
+        keyword: transactionSearch.trim() || null,
+      });
+    }
+
+    if (salesView === "property") {
+      const map = new Map<string, SalesPropertyRow & { userSet: Set<string> }>();
+      transactionRows.forEach((row) => {
+        const current =
+          map.get(row.propertyId) ??
+          {
+            propertyId: row.propertyId,
+            propertyName: row.property,
+            transactions: 0,
+            users: 0,
+            totalSales: 0,
+            latestTransactionAt: null,
+            userSet: new Set<string>(),
+          };
+        current.transactions += 1;
+        current.userSet.add(row.userId);
+        if (row.status !== "DIBATALKAN") {
+          current.totalSales += row.total;
+        }
+        if (toTimestamp(row.submittedAt) > toTimestamp(current.latestTransactionAt)) {
+          current.latestTransactionAt = row.submittedAt;
+        }
+        map.set(row.propertyId, current);
+      });
+
+      const rows = Array.from(map.values()).map((row) => ({
+        propertyId: row.propertyId,
+        propertyName: row.propertyName,
+        transactions: row.transactions,
+        users: row.userSet.size,
+        totalSales: row.totalSales,
+        latestTransactionAt: row.latestTransactionAt,
+      }));
+
+      const searched = keyword
+        ? rows.filter((row) => row.propertyName.toLowerCase().includes(keyword))
+        : rows;
+      searched.sort((a, b) => {
+        if (sortBy === "total") {
+          if (a.totalSales !== b.totalSales) {
+            return sortFactor * (a.totalSales - b.totalSales);
+          }
+        } else {
+          const dateDiff = toTimestamp(a.latestTransactionAt) - toTimestamp(b.latestTransactionAt);
+          if (dateDiff !== 0) return sortFactor * dateDiff;
+        }
+        return sortFactor * (toTimestamp(a.latestTransactionAt) - toTimestamp(b.latestTransactionAt));
+      });
+
+      total = searched.length;
+      const totalPages = Math.max(1, Math.ceil(total / salesLimit));
+      const page = Math.min(Math.max(1, salesPage), totalPages);
+      const start = (page - 1) * salesLimit;
+      const end = start + salesLimit;
+      pagedPropertyRows = searched.slice(start, end);
+
+      setSalesMeta({
+        page,
+        limit: salesLimit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        view: salesView,
+        sortBy,
+        sortOrder: salesSortOrder,
+        startDate: dateRange.from || null,
+        endDate: dateRange.to || null,
+        keyword: transactionSearch.trim() || null,
+      });
+    }
+
+    if (salesView === "user") {
+      const map = new Map<string, SalesUserRow & { propertySet: Set<string> }>();
+      transactionRows.forEach((row) => {
+        const current =
+          map.get(row.userId) ??
+          {
+            userId: row.userId,
+            userName: row.user,
+            transactions: 0,
+            properties: 0,
+            totalSales: 0,
+            latestTransactionAt: null,
+            propertySet: new Set<string>(),
+          };
+        current.transactions += 1;
+        current.propertySet.add(row.propertyId);
+        if (row.status !== "DIBATALKAN") {
+          current.totalSales += row.total;
+        }
+        if (toTimestamp(row.submittedAt) > toTimestamp(current.latestTransactionAt)) {
+          current.latestTransactionAt = row.submittedAt;
+        }
+        map.set(row.userId, current);
+      });
+
+      const rows = Array.from(map.values()).map((row) => ({
+        userId: row.userId,
+        userName: row.userName,
+        transactions: row.transactions,
+        properties: row.propertySet.size,
+        totalSales: row.totalSales,
+        latestTransactionAt: row.latestTransactionAt,
+      }));
+
+      const searched = keyword
+        ? rows.filter((row) => row.userName.toLowerCase().includes(keyword))
+        : rows;
+      searched.sort((a, b) => {
+        if (sortBy === "total") {
+          if (a.totalSales !== b.totalSales) {
+            return sortFactor * (a.totalSales - b.totalSales);
+          }
+        } else {
+          const dateDiff = toTimestamp(a.latestTransactionAt) - toTimestamp(b.latestTransactionAt);
+          if (dateDiff !== 0) return sortFactor * dateDiff;
+        }
+        return sortFactor * (toTimestamp(a.latestTransactionAt) - toTimestamp(b.latestTransactionAt));
+      });
+
+      total = searched.length;
+      const totalPages = Math.max(1, Math.ceil(total / salesLimit));
+      const page = Math.min(Math.max(1, salesPage), totalPages);
+      const start = (page - 1) * salesLimit;
+      const end = start + salesLimit;
+      pagedUserRows = searched.slice(start, end);
+
+      setSalesMeta({
+        page,
+        limit: salesLimit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        view: salesView,
+        sortBy,
+        sortOrder: salesSortOrder,
+        startDate: dateRange.from || null,
+        endDate: dateRange.to || null,
+        keyword: transactionSearch.trim() || null,
+      });
+    }
+
+    setSalesTransactionRows(pagedTransactionRows);
+    setSalesPropertyRows(pagedPropertyRows);
+    setSalesUserRows(pagedUserRows);
+    setSalesSummary({
+      totalSales,
+      totalTransactions,
+      avgPerTransaction:
+        totalTransactions > 0 ? Math.round(totalSales / totalTransactions) : 0,
+    });
+    setSalesTrendData(
+      trendBuckets.map((bucket) => ({
+        month: bucket.month,
+        sales: bucket.sales,
+        bookings: bucket.bookings,
+      })),
+    );
+
+    return true;
+  };
+
+  const loadSalesReport = async () => {
+    if (salesDateRangeInvalid) {
+      setSalesError(
+        "Rentang tanggal tidak valid. Tanggal mulai harus sebelum tanggal akhir.",
+      );
+      setSalesTransactionRows([]);
+      setSalesPropertyRows([]);
+      setSalesUserRows([]);
+      setSalesSummary(defaultSalesSummary);
+      setSalesTrendData([]);
+      return;
+    }
+
+    try {
+      setSalesLoading(true);
+      setSalesError(null);
+
+      const query = new URLSearchParams({
+        view: salesView,
+        sortBy,
+        sortOrder: salesSortOrder,
+        page: String(salesPage),
+        limit: String(salesLimit),
+      });
+
+      if (dateRange.from) query.set("startDate", dateRange.from);
+      if (dateRange.to) query.set("endDate", dateRange.to);
+      const keyword = transactionSearch.trim();
+      if (keyword) query.set("keyword", keyword);
+
+      const response = await fetchJson<SalesReportResponse>(
+        `/bookings/tenant/reports/sales?${query.toString()}`,
+      );
+
+      setSalesSummary(response.summary ?? defaultSalesSummary);
+      setSalesTrendData(Array.isArray(response.trend) ? response.trend : []);
+      setSalesMeta({
+        ...defaultSalesMeta,
+        ...(response.meta ?? {}),
+      });
+
+      if (salesView === "transaction") {
+        setSalesTransactionRows((response.data ?? []) as SalesTransactionRow[]);
+        setSalesPropertyRows([]);
+        setSalesUserRows([]);
+      } else if (salesView === "property") {
+        setSalesPropertyRows((response.data ?? []) as SalesPropertyRow[]);
+        setSalesTransactionRows([]);
+        setSalesUserRows([]);
+      } else {
+        setSalesUserRows((response.data ?? []) as SalesUserRow[]);
+        setSalesTransactionRows([]);
+        setSalesPropertyRows([]);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Gagal memuat sales report.";
+      const hasFallback = applySalesFallbackFromOverview();
+      if (hasFallback) {
+        setSalesError(`${message} Menampilkan data fallback dari payment proof.`);
+      } else {
+        setSalesError(message);
+        setSalesTransactionRows([]);
+        setSalesPropertyRows([]);
+        setSalesUserRows([]);
+        setSalesSummary(defaultSalesSummary);
+        setSalesTrendData([]);
+      }
+    } finally {
+      setSalesLoading(false);
+    }
+  };
+
   const loadTenantReviews = async () => {
     try {
       setTenantReviewsLoading(true);
@@ -1973,20 +2509,36 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   };
 
   useEffect(() => {
-    if (
-      (active === "property-report" ||
-        active === "room-management" ||
-        active === "property-management" ||
-        active === "property-category" ||
-        active === "dashboard-overview") &&
-      properties.length === 0
-    ) {
-      fetchProperties();
+    if (active === "sales-report" && reportTab === "property") {
+      fetchProperties({
+        mode: "page",
+        page: propertyReportPage,
+        limit: propertyReportLimit,
+      });
+      return;
     }
-  }, [active]);
+
+    if (
+      active === "room-management" ||
+      active === "property-management" ||
+      active === "property-category" ||
+      active === "dashboard-overview"
+    ) {
+      fetchProperties({ mode: "all", limit: 50 });
+    }
+  }, [active, propertyReportPage, propertyReportLimit, reportTab]);
 
   useEffect(() => {
-    if (properties.length > 0 && !selectedPropertyId) {
+    if (properties.length === 0) {
+      setSelectedPropertyId("");
+      setSelectedRoomId("");
+      return;
+    }
+
+    const propertyExists = properties.some(
+      (property) => property.id === selectedPropertyId,
+    );
+    if (!propertyExists) {
       setSelectedPropertyId(properties[0].id);
     }
   }, [properties, selectedPropertyId]);
@@ -2023,9 +2575,29 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   }, [active]);
 
   useEffect(() => {
-    if (active !== "dashboard-overview") return;
+    if (active !== "dashboard-overview" && active !== "sales-report") return;
     loadOverviewData();
   }, [active]);
+
+  useEffect(() => {
+    setSalesPage(1);
+  }, [salesView, sortBy, salesSortOrder, dateRange.from, dateRange.to, transactionSearch]);
+
+  useEffect(() => {
+    if (active !== "sales-report" || reportTab !== "sales") return;
+    loadSalesReport();
+  }, [
+    active,
+    reportTab,
+    salesView,
+    sortBy,
+    salesSortOrder,
+    dateRange.from,
+    dateRange.to,
+    transactionSearch,
+    salesPage,
+    salesLimit,
+  ]);
 
   useEffect(() => {
     if (active !== "customer-relations") return;
@@ -2033,11 +2605,20 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   }, [active]);
 
   useEffect(() => {
+    setPropertyReportPage(1);
+  }, [propertyReportLimit]);
+
+  useEffect(() => {
     setIsSidebarOpen(false);
   }, [active]);
 
   useEffect(() => {
-    if (active !== "room-management" && active !== "property-report") return;
+    if (
+      active !== "room-management" &&
+      !(active === "sales-report" && reportTab === "property")
+    ) {
+      return;
+    }
     if (availabilityQuery.startDate && availabilityQuery.endDate) return;
     const today = new Date();
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -2046,10 +2627,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       startDate: formatDateInput(monthStart),
       endDate: formatDateInput(monthEnd),
     });
-  }, [active, availabilityQuery.startDate, availabilityQuery.endDate]);
+  }, [active, availabilityQuery.startDate, availabilityQuery.endDate, reportTab]);
 
   useEffect(() => {
-    if (active !== "room-management" && active !== "property-report") return;
+    if (
+      active !== "room-management" &&
+      !(active === "sales-report" && reportTab === "property")
+    ) {
+      return;
+    }
     if (!selectedRoomId) return;
     if (!availabilityQuery.startDate || !availabilityQuery.endDate) return;
     loadAvailability();
@@ -2058,6 +2644,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     selectedRoomId,
     availabilityQuery.startDate,
     availabilityQuery.endDate,
+    reportTab,
   ]);
 
   useEffect(() => {
@@ -2068,7 +2655,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   }, [selectedRoomId]);
 
   return (
-    <div className="min-h-screen bg-[#f4f6fb] text-slate-900">
+    <div className="tenant-dashboard-shell min-h-screen bg-transparent text-slate-900">
       {isSidebarOpen ? (
         <div
           className="fixed inset-0 z-30 bg-slate-900/45 lg:hidden"
@@ -2077,7 +2664,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-slate-200 bg-white transition-all duration-300 ${
+        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-slate-200/80 bg-white/90 shadow-[0_24px_48px_-32px_rgba(15,23,42,0.55)] backdrop-blur transition-all duration-300 ${
           isSidebarCollapsed ? "w-64 lg:w-20" : "w-64"
         } ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
@@ -2089,11 +2676,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               isSidebarCollapsed ? "lg:w-full lg:justify-center" : ""
             }`}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-xs font-bold text-slate-900">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-cyan-700 to-teal-700 text-xs font-bold text-white">
               BI
             </div>
             <span
-              className={`text-sm font-bold text-slate-800 ${
+              className={`font-display text-lg font-semibold text-slate-900 ${
                 isSidebarCollapsed ? "lg:hidden" : ""
               }`}
             >
@@ -2103,7 +2690,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           <button
             type="button"
             onClick={() => setIsSidebarOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-cyan-50 hover:text-cyan-800 lg:hidden"
             aria-label="Close menu"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
@@ -2115,7 +2702,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         <button
           type="button"
           onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-          className="absolute -right-3 top-7 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-xs text-slate-600 shadow-sm transition hover:bg-slate-50 lg:flex"
+          className="absolute -right-3 top-7 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-xs text-slate-600 shadow-sm transition hover:bg-cyan-50 hover:text-cyan-800 lg:flex"
           aria-label="Toggle sidebar"
         >
           {isSidebarCollapsed ? ">" : "<"}
@@ -2130,32 +2717,46 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 </p>
               ) : null}
               <div className="space-y-1.5">
-                {group.items.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => setActive(item.key)}
-                    className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
-                      active === item.key
-                        ? BUTTON_THEME.softActive
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    } ${isSidebarCollapsed ? "justify-center lg:px-2" : ""}`}
-                    title={isSidebarCollapsed ? item.label : undefined}
-                  >
-                    <span
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ${
-                        active === item.key
-                          ? BUTTON_THEME.softActiveEmphasis
-                          : "bg-slate-100 text-slate-500"
-                      }`}
+                {group.items.map((item) => {
+                  const isItemActive =
+                    active === item.key ||
+                    (active === "property-category" &&
+                      item.key === "property-management") ||
+                    (active === "room-management" &&
+                      item.key === "property-management");
+
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => {
+                        setActive(item.key);
+                        if (item.key === "sales-report") {
+                          setReportTab("sales");
+                        }
+                      }}
+                      className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
+                        isItemActive
+                          ? BUTTON_THEME.softActive
+                          : "text-slate-600 hover:bg-cyan-50 hover:text-cyan-900"
+                      } ${isSidebarCollapsed ? "justify-center lg:px-2" : ""}`}
+                      title={isSidebarCollapsed ? item.label : undefined}
                     >
-                      {renderNavIcon(item.key)}
-                    </span>
-                    <span className={isSidebarCollapsed ? "lg:hidden" : ""}>
-                      {item.label}
-                    </span>
-                  </button>
-                ))}
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ${
+                          isItemActive
+                            ? BUTTON_THEME.softActiveEmphasis
+                            : "bg-slate-100 text-slate-500 group-hover:bg-cyan-100 group-hover:text-cyan-800"
+                        }`}
+                      >
+                        {renderNavIcon(item.key)}
+                      </span>
+                      <span className={isSidebarCollapsed ? "lg:hidden" : ""}>
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -2164,7 +2765,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         <div className="border-t border-slate-200 p-3">
           <a
             href="/"
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 ${
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-cyan-50 hover:text-cyan-900 ${
               isSidebarCollapsed ? "justify-center lg:px-2" : ""
             }`}
           >
@@ -2184,12 +2785,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           isSidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
         }`}
       >
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/80 px-4 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 lg:hidden"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-cyan-50 hover:text-cyan-900 lg:hidden"
               aria-label="Open menu"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
@@ -2211,7 +2812,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 value={headerSearch}
                 onChange={(event) => setHeaderSearch(event.target.value)}
                 placeholder="Search..."
-                className="h-10 w-[220px] rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-600 md:w-[380px]"
+                className={`h-10 w-[220px] rounded-lg border border-slate-200 bg-white/90 pl-10 pr-4 text-sm text-slate-600 md:w-[380px] ${INPUT_THEME.focus}`}
                 aria-label="Search"
               />
             </div>
@@ -2220,7 +2821,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           <div className="flex items-center gap-3 border-l border-slate-200 pl-3 sm:gap-4 sm:pl-5">
             <button
               type="button"
-              className="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-cyan-50 hover:text-cyan-900"
               aria-label="Notifications"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
@@ -2240,7 +2841,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 {me.tenantProfile?.companyName ?? "Premium Tenant"}
               </p>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-900 sm:h-10 sm:w-10">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-cyan-700 to-teal-700 text-xs font-bold text-white sm:h-10 sm:w-10">
               {tenantInitials}
             </div>
           </div>
@@ -2253,7 +2854,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-3xl font-bold text-slate-900">Dashboard Overview</h2>
+                  <h2 className="font-display text-4xl text-slate-900">Dashboard Overview</h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Welcome back, here&apos;s what&apos;s happening with your properties today.
                   </p>
@@ -2262,7 +2863,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   type="button"
                   onClick={loadOverviewData}
                   disabled={overviewLoading}
-                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-60"
                 >
                   {overviewLoading ? "Refreshing..." : "Refresh Data"}
                 </button>
@@ -2323,7 +2924,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 ].map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
+                    className="surface-panel rounded-xl px-5 py-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -2356,8 +2957,8 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-3">
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
-                  <h3 className="text-2xl font-bold text-slate-900">Revenue Analytics</h3>
+                <div className="surface-panel rounded-xl p-5 xl:col-span-2">
+                  <h3 className="font-display text-3xl text-slate-900">Revenue Analytics</h3>
                   <div className="mt-4 rounded-lg bg-slate-50 p-4">
                     <svg
                       viewBox={`0 0 ${overviewChart.width} ${overviewChart.height}`}
@@ -2437,8 +3038,8 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h3 className="text-2xl font-bold text-slate-900">Recent Activity</h3>
+                <div className="surface-panel rounded-xl p-5">
+                  <h3 className="font-display text-3xl text-slate-900">Recent Activity</h3>
                   <div className="mt-5 space-y-4">
                     {overviewRecentActivity.length === 0 ? (
                       <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
@@ -2469,14 +3070,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   <button
                     type="button"
                     onClick={() => setActive("order-management")}
-                    className="mt-4 text-sm font-semibold text-slate-800 transition hover:text-slate-900"
+                    className="mt-4 text-sm font-semibold text-cyan-800 transition hover:text-cyan-900"
                   >
                     View All Activity
                   </button>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="surface-panel rounded-xl p-5">
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold text-slate-900">Property Breakdown</h3>
                   <p className="mt-1 text-xs text-slate-500">
@@ -2605,46 +3206,29 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             </div>
           ) : null}
 
-          {active === "sales-report" ? (
+          {active === "sales-report" && reportTab === "sales" ? (
             <div className="space-y-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">
-                    Reports & Analysis
+                  <h2 className="font-display text-3xl text-slate-900">
+                    Sales Report
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Track your performance and property availability.
+                    Laporan penjualan tenant berdasarkan transaksi, properti, dan user.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                    onClick={loadSalesReport}
+                    disabled={salesLoading}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-70"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
-                      <rect x="3.5" y="5.5" width="17" height="15" rx="2" strokeWidth="1.8" />
-                      <path d="M8 3v4M16 3v4M3.5 10.5h17" strokeWidth="1.8" strokeLinecap="round" />
+                      <path d="M20 12a8 8 0 0 1-14.5 4.5M4 12A8 8 0 0 1 18.5 7.5" strokeWidth="1.8" strokeLinecap="round" />
+                      <path d="M4 16v-3.5h3.5M20 8v3.5h-3.5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    Last 30 Days
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
-                      <path d="M4 5H20L13 13V19L11 20V13L4 5Z" strokeWidth="1.8" strokeLinejoin="round" />
-                    </svg>
-                    Filter
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
-                      <path d="M12 4V15M8 11L12 15L16 11" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M4 19H20" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                    Export
+                    {salesLoading ? "Memuat..." : "Refresh"}
                   </button>
                 </div>
               </div>
@@ -2653,49 +3237,180 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <div className="flex items-center gap-6">
                   <button
                     type="button"
-                    onClick={() => setActive("sales-report")}
-                    className="border-b-2 border-slate-900 pb-3 text-sm font-medium text-slate-800"
+                    onClick={() => setReportTab("sales")}
+                    className="border-b-2 border-cyan-800 pb-3 text-sm font-medium text-cyan-900"
                   >
                     Sales Report
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActive("property-report")}
-                    className="border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 transition hover:text-slate-700"
+                    onClick={() => setReportTab("property")}
+                    className="border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 transition hover:text-cyan-800"
                   >
                     Property Availability
                   </button>
                 </div>
               </div>
 
+              <div className="surface-panel rounded-xl p-4">
+                <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto_auto]">
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      Report View
+                    </span>
+                    <select
+                      value={salesView}
+                      onChange={(event) =>
+                        setSalesView(
+                          event.target.value as "transaction" | "property" | "user",
+                        )
+                      }
+                      className={`h-10 min-w-[180px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                    >
+                      <option value="transaction">Transaction</option>
+                      <option value="property">Property</option>
+                      <option value="user">User</option>
+                    </select>
+                  </label>
+
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      Sort By
+                    </span>
+                    <select
+                      value={sortBy}
+                      onChange={(event) =>
+                        setSortBy(event.target.value as "date" | "total")
+                      }
+                      className={`h-10 min-w-[150px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                    >
+                      <option value="date">Date</option>
+                      <option value="total">Total Sales</option>
+                    </select>
+                  </label>
+
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      Sort Order
+                    </span>
+                    <select
+                      value={salesSortOrder}
+                      onChange={(event) =>
+                        setSalesSortOrder(event.target.value as "asc" | "desc")
+                      }
+                      className={`h-10 min-w-[130px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                    >
+                      <option value="desc">Desc</option>
+                      <option value="asc">Asc</option>
+                    </select>
+                  </label>
+
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      From
+                    </span>
+                    <input
+                      type="date"
+                      value={dateRange.from}
+                      onChange={(event) =>
+                        setDateRange((prev) => ({ ...prev, from: event.target.value }))
+                      }
+                      className={`h-10 min-w-[160px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                    />
+                  </label>
+
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      To
+                    </span>
+                    <input
+                      type="date"
+                      value={dateRange.to}
+                      onChange={(event) =>
+                        setDateRange((prev) => ({ ...prev, to: event.target.value }))
+                      }
+                      className={`h-10 min-w-[160px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <div className="relative min-w-[260px] flex-1">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                      fill="none"
+                      stroke="currentColor"
+                    >
+                      <circle cx="11" cy="11" r="7" strokeWidth="2" />
+                      <path d="M20 20L17 17" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={transactionSearch}
+                      onChange={(event) => setTransactionSearch(event.target.value)}
+                      placeholder={
+                        salesView === "transaction"
+                          ? "Cari transaksi / properti / user..."
+                          : salesView === "property"
+                            ? "Cari nama properti..."
+                            : "Cari nama user..."
+                      }
+                      className={`h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransactionSearch("");
+                      setDateRange({ from: "", to: "" });
+                      setSortBy("date");
+                      setSalesSortOrder("desc");
+                      setSalesPage(1);
+                    }}
+                    className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+
+                {salesDateRangeInvalid ? (
+                  <p className="mt-3 text-xs text-rose-600">
+                    Rentang tanggal tidak valid. Tanggal mulai harus sebelum tanggal akhir.
+                  </p>
+                ) : null}
+                {salesError ? <p className="mt-2 text-xs text-rose-600">{salesError}</p> : null}
+              </div>
+
               <div className="grid gap-4 lg:grid-cols-3">
                 {[
                   {
                     label: "Total Sales",
-                    value: formatCurrency(overviewSummary.totalRevenue),
-                    change: "+12.5% vs last period",
+                    value: formatCurrency(salesSummary.totalSales),
+                    change: `${salesSummary.totalTransactions} transaksi`,
                     positive: true,
                   },
                   {
-                    label: "Total Bookings",
-                    value: `${overviewOrders.length}`,
-                    change: "+8.2% vs last period",
+                    label: "Total Transactions",
+                    value: `${salesSummary.totalTransactions}`,
+                    change:
+                      salesView === "property"
+                        ? `${salesMeta.total} properti`
+                        : salesView === "user"
+                          ? `${salesMeta.total} user`
+                          : `${salesMeta.total} transaksi`,
                     positive: true,
                   },
                   {
-                    label: "Avg. Daily Rate",
-                    value: formatCurrency(
-                      overviewOrders.length > 0
-                        ? Math.round(overviewSummary.totalRevenue / overviewOrders.length)
-                        : 0,
-                    ),
-                    change: "-2.1% vs last period",
-                    positive: false,
+                    label: "Avg. Transaction Value",
+                    value: formatCurrency(salesSummary.avgPerTransaction),
+                    change: "Diluar transaksi dibatalkan",
+                    positive: true,
                   },
                 ].map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-xl border border-slate-200 bg-white px-6 py-6 shadow-sm"
+                    className="surface-panel rounded-xl px-6 py-6"
                   >
                     <p className="text-sm font-medium text-slate-500">{item.label}</p>
                     <p className="mt-2 text-[40px] font-bold leading-none text-slate-900 sm:text-4xl">
@@ -2712,7 +3427,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 ))}
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="surface-panel rounded-xl p-6">
                 <h3 className="text-lg font-bold text-slate-900">Sales Trend</h3>
                 <div className="relative mt-5">
                   <div className="pointer-events-none absolute left-0 right-0 top-0 z-0 grid h-64 grid-rows-4">
@@ -2721,7 +3436,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     ))}
                   </div>
                   <div className="relative z-10 grid h-72 grid-cols-7 gap-3 pt-2">
-                    {salesTrendData.map((item) => (
+                    {salesTrendSeries.map((item) => (
                       <div key={item.month} className="flex flex-col items-center justify-end gap-2">
                         <div className="flex h-60 items-end gap-1.5">
                           <div
@@ -2758,49 +3473,227 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   </div>
                 </div>
               </div>
+
+              <div className="surface-panel rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {salesView === "transaction"
+                    ? "Transaction Report"
+                    : salesView === "property"
+                      ? "Property Report"
+                      : "User Report"}
+                </h3>
+
+                <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
+                  {salesView === "transaction" ? (
+                    <table className="w-full min-w-[860px] text-left text-sm">
+                      <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Transaction</th>
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Property</th>
+                          <th className="px-4 py-3">User</th>
+                          <th className="px-4 py-3 text-right">Total Sales</th>
+                          <th className="px-4 py-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesTransactionRows.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-4 py-6 text-center text-sm text-slate-500"
+                            >
+                              Tidak ada data transaksi pada filter ini.
+                            </td>
+                          </tr>
+                        ) : (
+                          salesTransactionRows.map((order) => (
+                            <tr key={order.id} className="border-t border-slate-100">
+                              <td className="px-4 py-3 font-semibold text-slate-900">
+                                {order.orderNo}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {formatDateTime(order.submittedAt)}
+                              </td>
+                              <td className="px-4 py-3 text-slate-700">{order.property}</td>
+                              <td className="px-4 py-3 text-slate-700">{order.user}</td>
+                              <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                                {formatCurrency(order.total)}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {formatBookingStatus(order.status)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  ) : null}
+
+                  {salesView === "property" ? (
+                    <table className="w-full min-w-[780px] text-left text-sm">
+                      <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Property</th>
+                          <th className="px-4 py-3 text-right">Transaction</th>
+                          <th className="px-4 py-3 text-right">User</th>
+                          <th className="px-4 py-3 text-right">Total Sales</th>
+                          <th className="px-4 py-3">Last Transaction</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesPropertyRows.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={5}
+                              className="px-4 py-6 text-center text-sm text-slate-500"
+                            >
+                              Tidak ada data properti pada filter ini.
+                            </td>
+                          </tr>
+                        ) : (
+                          salesPropertyRows.map((row) => (
+                            <tr key={row.propertyId} className="border-t border-slate-100">
+                              <td className="px-4 py-3 font-semibold text-slate-900">
+                                {row.propertyName}
+                              </td>
+                              <td className="px-4 py-3 text-right text-slate-700">
+                                {row.transactions}
+                              </td>
+                              <td className="px-4 py-3 text-right text-slate-700">
+                                {row.users}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                                {formatCurrency(row.totalSales)}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {formatDateTime(row.latestTransactionAt)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  ) : null}
+
+                  {salesView === "user" ? (
+                    <table className="w-full min-w-[780px] text-left text-sm">
+                      <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">User</th>
+                          <th className="px-4 py-3 text-right">Transaction</th>
+                          <th className="px-4 py-3 text-right">Property</th>
+                          <th className="px-4 py-3 text-right">Total Sales</th>
+                          <th className="px-4 py-3">Last Transaction</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesUserRows.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={5}
+                              className="px-4 py-6 text-center text-sm text-slate-500"
+                            >
+                              Tidak ada data user pada filter ini.
+                            </td>
+                          </tr>
+                        ) : (
+                          salesUserRows.map((row) => (
+                            <tr key={row.userId} className="border-t border-slate-100">
+                              <td className="px-4 py-3 font-semibold text-slate-900">
+                                {row.userName}
+                              </td>
+                              <td className="px-4 py-3 text-right text-slate-700">
+                                {row.transactions}
+                              </td>
+                              <td className="px-4 py-3 text-right text-slate-700">
+                                {row.properties}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                                {formatCurrency(row.totalSales)}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {formatDateTime(row.latestTransactionAt)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">
+                    Menampilkan page {salesMeta.page} dari {salesMeta.totalPages} (
+                    {salesMeta.total} data)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-slate-500">
+                      Rows
+                      <select
+                        value={salesLimit}
+                        onChange={(event) => {
+                          const nextLimit = Number(event.target.value);
+                          setSalesLimit(Number.isFinite(nextLimit) ? nextLimit : 10);
+                          setSalesPage(1);
+                        }}
+                        className={`ml-2 h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSalesPage((prev) => Math.max(1, prev - 1))}
+                      disabled={!salesMeta.hasPrev || salesLoading}
+                      className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSalesPage((prev) =>
+                          salesMeta.hasNext ? prev + 1 : prev,
+                        )
+                      }
+                      disabled={!salesMeta.hasNext || salesLoading}
+                      className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
 
-          {active === "property-report" ? (
+          {active === "sales-report" && reportTab === "property" ? (
             <div className="space-y-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">
-                    Reports & Analysis
+                  <h2 className="font-display text-3xl text-slate-900">
+                    Property Report
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Track your performance and property availability.
+                    Monitor ketersediaan properti dan kamar dalam bentuk kalender.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                    onClick={loadAvailability}
+                    disabled={availabilityLoading}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-70"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
-                      <rect x="3.5" y="5.5" width="17" height="15" rx="2" strokeWidth="1.8" />
-                      <path d="M8 3v4M16 3v4M3.5 10.5h17" strokeWidth="1.8" strokeLinecap="round" />
+                      <path d="M20 12a8 8 0 0 1-14.5 4.5M4 12A8 8 0 0 1 18.5 7.5" strokeWidth="1.8" strokeLinecap="round" />
+                      <path d="M4 16v-3.5h3.5M20 8v3.5h-3.5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    Last 30 Days
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
-                      <path d="M4 5H20L13 13V19L11 20V13L4 5Z" strokeWidth="1.8" strokeLinejoin="round" />
-                    </svg>
-                    Filter
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
-                      <path d="M12 4V15M8 11L12 15L16 11" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M4 19H20" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                    Export
+                    {availabilityLoading ? "Memuat..." : "Refresh Kalender"}
                   </button>
                 </div>
               </div>
@@ -2809,22 +3702,211 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <div className="flex items-center gap-6">
                   <button
                     type="button"
-                    onClick={() => setActive("sales-report")}
-                    className="border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 transition hover:text-slate-700"
+                    onClick={() => setReportTab("sales")}
+                    className="border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 transition hover:text-cyan-800"
                   >
                     Sales Report
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActive("property-report")}
-                    className="border-b-2 border-slate-900 pb-3 text-sm font-medium text-slate-800"
+                    onClick={() => setReportTab("property")}
+                    className="border-b-2 border-cyan-800 pb-3 text-sm font-medium text-cyan-900"
                   >
                     Property Availability
                   </button>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="surface-panel rounded-xl p-4">
+                <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      Property
+                    </span>
+                    <select
+                      value={selectedPropertyId}
+                      onChange={(event) => setSelectedPropertyId(event.target.value)}
+                      className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                      disabled={propertiesLoading}
+                    >
+                      <option value="">Pilih properti</option>
+                      {properties.map((property) => (
+                        <option key={property.id} value={property.id}>
+                          {property.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      Room
+                    </span>
+                    <select
+                      value={selectedRoomId}
+                      onChange={(event) => setSelectedRoomId(event.target.value)}
+                      className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                      disabled={!selectedProperty}
+                    >
+                      <option value="">Pilih room</option>
+                      {availableRooms.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      Start Date
+                    </span>
+                    <input
+                      type="date"
+                      value={availabilityQuery.startDate}
+                      onChange={(event) =>
+                        setAvailabilityQuery((prev) => ({
+                          ...prev,
+                          startDate: event.target.value,
+                        }))
+                      }
+                      className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                    />
+                  </label>
+
+                  <label className="text-xs text-slate-500">
+                    <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
+                      End Date
+                    </span>
+                    <input
+                      type="date"
+                      value={availabilityQuery.endDate}
+                      onChange={(event) =>
+                        setAvailabilityQuery((prev) => ({
+                          ...prev,
+                          endDate: event.target.value,
+                        }))
+                      }
+                      className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                    />
+                  </label>
+
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const today = new Date();
+                        const monthStart = new Date(
+                          today.getFullYear(),
+                          today.getMonth(),
+                          1,
+                        );
+                        const monthEnd = new Date(
+                          today.getFullYear(),
+                          today.getMonth() + 1,
+                          0,
+                        );
+                        setAvailabilityQuery({
+                          startDate: formatDateInput(monthStart),
+                          endDate: formatDateInput(monthEnd),
+                        });
+                      }}
+                      className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900"
+                    >
+                      Bulan Ini
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                    <span className="font-semibold text-slate-900">
+                      {selectedProperty?.name ?? "Belum pilih properti"}
+                    </span>
+                    {" · "}
+                    <span>{selectedRoom?.name ?? "Belum pilih room"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1">
+                    <button
+                      type="button"
+                      onClick={() => shiftAvailabilityMonth(-1)}
+                      className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
+                      aria-label="Previous month"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
+                        <path d="M15 6L9 12L15 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <span className="px-2 text-sm font-semibold text-slate-900">
+                      {roomMonthLabel}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => shiftAvailabilityMonth(1)}
+                      className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
+                      aria-label="Next month"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
+                        <path d="M9 6L15 12L9 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {propertiesError ? (
+                  <p className="mt-3 text-xs text-rose-600">{propertiesError}</p>
+                ) : null}
+                {availabilityError ? (
+                  <p className="mt-1 text-xs text-rose-600">{availabilityError}</p>
+                ) : null}
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-slate-600">
+                    Property page {propertyReportMeta.page} dari{" "}
+                    {propertyReportMeta.totalPages} ({propertyReportMeta.total} properti)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-slate-500">
+                      Rows
+                      <select
+                        value={propertyReportLimit}
+                        onChange={(event) =>
+                          setPropertyReportLimit(Number(event.target.value) || 10)
+                        }
+                        className={`ml-2 h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                      >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPropertyReportPage((prev) => Math.max(1, prev - 1))
+                      }
+                      disabled={!propertyReportMeta.hasPrev || propertiesLoading}
+                      className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPropertyReportPage((prev) =>
+                          propertyReportMeta.hasNext ? prev + 1 : prev,
+                        )
+                      }
+                      disabled={!propertyReportMeta.hasNext || propertiesLoading}
+                      className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="surface-panel rounded-xl p-6">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-bold text-slate-900">Occupancy Calendar</h3>
                   <div className="flex items-center gap-4 text-sm text-slate-600">
@@ -2839,6 +3921,27 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     <span className="inline-flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-slate-400" />
                       Maintenance
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                    Available:{" "}
+                    <span className="font-semibold">
+                      {availabilityStatusSummary.available} hari
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    Booked:{" "}
+                    <span className="font-semibold">
+                      {availabilityStatusSummary.booked} hari
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700">
+                    Maintenance:{" "}
+                    <span className="font-semibold">
+                      {availabilityStatusSummary.maintenance} hari
                     </span>
                   </div>
                 </div>
@@ -2899,14 +4002,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           {active === "order-management" ? (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Transactions</h2>
+                <h2 className="font-display text-3xl text-slate-900">Transactions</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Manage orders and confirm payments.
                 </p>
               </div>
 
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 bg-slate-50/70 p-4">
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/88 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.5)] backdrop-blur">
+                <div className="border-b border-slate-200 bg-slate-50/60 p-4">
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {[
                       { value: "ALL" as const, label: "All" },
@@ -2921,8 +4024,8 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         onClick={() => setStatusFilter(tab.value)}
                         className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition ${
                           statusFilter === tab.value
-                            ? "border border-slate-200 bg-white text-slate-800 shadow-sm"
-                            : "border border-transparent text-slate-600 hover:bg-slate-100"
+                            ? "border border-cyan-200 bg-white text-cyan-900 shadow-sm"
+                            : "border border-transparent text-slate-600 hover:bg-cyan-50 hover:text-cyan-900"
                         }`}
                       >
                         {tab.label}
@@ -2951,7 +4054,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     </div>
                     <button
                       type="button"
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500"
+                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900"
                       aria-label="Filter"
                     >
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
@@ -3011,7 +4114,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                 {order.user}
                               </td>
                               <td className="px-6 py-4 text-slate-500">{order.property}</td>
-                              <td className="px-6 py-4 text-slate-500">{order.checkIn}</td>
+                              <td className="px-6 py-4 text-slate-500">
+                                {formatDateTime(order.checkIn)}
+                              </td>
                               <td className="px-6 py-4 font-semibold text-slate-900">
                                 {formatCurrency(order.total)}
                               </td>
@@ -3131,7 +4236,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             </div>
                             <div>
                               <p className="text-xs text-slate-400">Check-In</p>
-                              <p>{order.checkIn}</p>
+                              <p>{formatDateTime(order.checkIn)}</p>
                             </div>
                           </div>
                           <div className="flex items-center justify-between border-t border-slate-100 pt-3">
@@ -3316,13 +4421,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Properties & Rooms</h2>
+                  <h2 className="font-display text-3xl text-slate-900">Properties & Rooms</h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Manage your properties, rooms, and categories.
                   </p>
                 </div>
                 <div className="flex gap-3">
-                  <div className="flex rounded-lg border border-slate-200 bg-white p-1">
+                  <div className="rounded-lg border border-slate-200 bg-white/90 p-1 backdrop-blur">
                     <button
                       type="button"
                       onClick={() => setActive("property-management")}
@@ -3369,7 +4474,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   <p className="text-xs text-emerald-700">{categoryCreateFeedback}</p>
                 ) : null}
 
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/88 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.5)] backdrop-blur">
                   <table className="w-full text-left text-sm">
                     <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
                       <tr>
@@ -3417,13 +4522,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Properties & Rooms</h2>
+                  <h2 className="font-display text-3xl text-slate-900">Properties & Rooms</h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Manage your properties, rooms, and categories.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex rounded-lg border border-slate-200 bg-white p-1">
+                  <div className="rounded-lg border border-slate-200 bg-white/90 p-1 backdrop-blur">
                     <button
                       type="button"
                       className={`rounded-md px-4 py-1.5 text-sm font-medium shadow-sm ${BUTTON_THEME.softActive}`}
@@ -3478,7 +4583,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 {filteredPropertyCards.map((property) => (
                   <div
                     key={property.id}
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.5)] backdrop-blur"
                   >
                     <div className="relative h-64 overflow-hidden">
                       <img
@@ -3522,7 +4627,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             }
                             setActive("room-management");
                           }}
-                          className={`rounded-xl px-4 py-2 text-sm font-medium transition hover:bg-slate-200 ${BUTTON_THEME.softActive}`}
+                          className={`rounded-xl px-4 py-2 text-sm font-medium transition hover:bg-cyan-100 ${BUTTON_THEME.softActive}`}
                         >
                           Manage Rooms
                         </button>
@@ -3533,7 +4638,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               </div>
 
               {!propertiesLoading && filteredPropertyCards.length === 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
+                <div className="surface-panel rounded-xl px-4 py-6 text-sm text-slate-500">
                   Tidak ada properti yang cocok dengan pencarian.
                 </div>
               ) : null}
@@ -3555,7 +4660,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     </svg>
                   </button>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Room Management</h2>
+                    <h2 className="font-display text-3xl text-slate-900">Room Management</h2>
                     <p className="mt-1 text-sm text-slate-500">
                       Manage prices for{" "}
                       <span className="font-medium text-slate-900">
@@ -3565,7 +4670,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   </div>
                 </div>
 
-                <div className="flex w-full max-w-[250px] items-center justify-between rounded-xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
+                <div className="flex w-full max-w-[250px] items-center justify-between rounded-xl border border-slate-200 bg-white/90 px-2 py-1 shadow-sm backdrop-blur">
                   <button
                     type="button"
                     onClick={() => shiftAvailabilityMonth(-1)}
@@ -3591,7 +4696,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               </div>
 
               <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/90 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.5)] backdrop-blur">
                   <div className="border-b border-slate-200 p-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="text-sm text-slate-600">
@@ -3733,7 +4838,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="surface-panel rounded-xl p-6">
                   <div className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-5 text-sm text-slate-700">
                     {selectedCalendarDates.length > 0 ? (
                       <span>
@@ -3843,7 +4948,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 </div>
               </div>
 
-              <details className="rounded-xl border border-slate-200 bg-white p-4">
+              <details className="surface-panel rounded-xl p-4">
                 <summary className="cursor-pointer text-sm font-semibold text-slate-900">
                   Riwayat penyesuaian harga
                 </summary>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
+import { formatDateDDMMYYYY } from "@/lib/date-format";
 
 /* ======================
  * Types (ERD-aligned)
@@ -25,6 +26,18 @@ interface Booking {
   status: BookingStatus;
   createdAt: string;
 }
+
+type BookingListResponse = {
+  data: Booking[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext?: boolean;
+    hasPrev?: boolean;
+  };
+};
 
 type BookingPreviewNight = {
   date: string;
@@ -64,6 +77,18 @@ type PropertyOption = {
   roomTypes: RoomTypeOption[];
 };
 
+type BookingOptionListResponse = {
+  data: PropertyOption[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext?: boolean;
+    hasPrev?: boolean;
+  };
+};
+
 const formatIDR = (value: string | number) => {
   const parsed = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(parsed)) return value;
@@ -75,12 +100,7 @@ const formatIDR = (value: string | number) => {
 };
 
 const formatDateTime = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return formatDateDDMMYYYY(value, value);
 };
 
 const formatBookingStatus = (status: BookingStatus) => {
@@ -154,16 +174,32 @@ export default function BookingPage() {
     }
     try {
       setBookingsError(null);
-      const res = await fetch(`${API_BASE_URL}/bookings`, {
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-      if (!res.ok) {
-        throw new Error("Gagal memuat booking.");
-      }
-      const json = await res.json();
-      setBookings(json.data ?? []);
+      const limit = 50;
+      let page = 1;
+      let totalPages = 1;
+      const aggregated: Booking[] = [];
+
+      do {
+        const query = new URLSearchParams({
+          page: String(page),
+          limit: String(limit),
+        });
+        const res = await fetch(`${API_BASE_URL}/bookings?${query.toString()}`, {
+          headers: {
+            ...getAuthHeaders(),
+          },
+        });
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload.message || "Gagal memuat booking.");
+        }
+        const json = (await res.json()) as BookingListResponse;
+        aggregated.push(...(json.data ?? []));
+        totalPages = Math.max(1, json.meta?.totalPages ?? 1);
+        page += 1;
+      } while (page <= totalPages);
+
+      setBookings(aggregated);
       setLastSyncedAt(new Date().toISOString());
     } catch (err) {
       setBookingsError(
@@ -181,18 +217,37 @@ export default function BookingPage() {
     try {
       setOptionsLoading(true);
       setOptionsError(null);
-      const res = await fetch(`${API_BASE_URL}/bookings/options`, {
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
+      const limit = 50;
+      let page = 1;
+      let totalPages = 1;
+      const aggregated: PropertyOption[] = [];
 
-      if (!res.ok) {
-        throw new Error("Gagal memuat daftar properti.");
-      }
+      do {
+        const query = new URLSearchParams({
+          page: String(page),
+          limit: String(limit),
+        });
+        const res = await fetch(
+          `${API_BASE_URL}/bookings/options?${query.toString()}`,
+          {
+            headers: {
+              ...getAuthHeaders(),
+            },
+          },
+        );
 
-      const json = (await res.json()) as PropertyOption[];
-      setProperties(json);
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload.message || "Gagal memuat daftar properti.");
+        }
+
+        const json = (await res.json()) as BookingOptionListResponse;
+        aggregated.push(...(json.data ?? []));
+        totalPages = Math.max(1, json.meta?.totalPages ?? 1);
+        page += 1;
+      } while (page <= totalPages);
+
+      setProperties(aggregated);
     } catch (err) {
       setOptionsError(
         err instanceof Error ? err.message : "Gagal memuat daftar properti.",
@@ -498,7 +553,8 @@ export default function BookingPage() {
               <strong>Order:</strong> {b.orderNo}
             </p>
             <p>
-              <strong>Date:</strong> {b.checkIn} → {b.checkOut}
+              <strong>Date:</strong> {formatDateTime(b.checkIn)} →{" "}
+              {formatDateTime(b.checkOut)}
             </p>
             <p>
               <strong>Guests:</strong> {b.guests}

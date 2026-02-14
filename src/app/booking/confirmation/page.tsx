@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
+import { formatDateDDMMYYYY } from "@/lib/date-format";
 
 const formatIDR = (value: string | number) => {
   const parsed = typeof value === "string" ? Number(value) : value;
@@ -321,7 +322,8 @@ function BookingConfirmationContent() {
             </p>
             <p className="text-sm text-slate-500">{roomName}</p>
             <p className="mt-2 text-xs text-slate-500">
-              {checkIn} {"->"} {checkOut} · {totalGuests} tamu
+              {formatDateDDMMYYYY(checkIn)} {"->"} {formatDateDDMMYYYY(checkOut)} ·{" "}
+              {totalGuests} tamu
             </p>
           </div>
 

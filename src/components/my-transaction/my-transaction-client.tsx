@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
+import { formatDateDDMMYYYY } from "@/lib/date-format";
 
 type BookingStatus =
   | "MENUNGGU_PEMBAYARAN"
@@ -97,30 +98,13 @@ const parseDateValue = (value: string) => {
 
 const formatDateLabel = (
   value: string,
-  options: Intl.DateTimeFormatOptions = {},
+  _options: Intl.DateTimeFormatOptions = {},
 ) => {
-  const date = parseDateValue(value);
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    ...options,
-  }).format(date);
+  return formatDateDDMMYYYY(value);
 };
 
 const formatDateTime = (value: string) => {
-  const date = parseDateValue(value);
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  return formatDateDDMMYYYY(value);
 };
 
 const buildStaySummary = (checkIn: string, checkOut: string): StaySummary => {

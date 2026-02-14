@@ -66,6 +66,16 @@ type PropertyItem = {
   rooms: RoomItem[];
 };
 
+type PropertyListResponse = {
+  data: PropertyItem[];
+  meta?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 const MAX_GALLERY_IMAGES = 5;
 const MAX_GALLERY_IMAGE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp"];
@@ -129,12 +139,30 @@ async function fetchProperties() {
   if (!token) {
     throw new Error("Unauthorized.");
   }
+  const limit = 50;
+  let page = 1;
+  let totalPages = 1;
+  const aggregated: PropertyItem[] = [];
 
-  return apiFetch<PropertyItem[]>("/properties", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  do {
+    const query = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    const response = await apiFetch<PropertyListResponse>(
+      `/properties?${query.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    aggregated.push(...(response.data ?? []));
+    totalPages = Math.max(1, response.meta?.totalPages ?? 1);
+    page += 1;
+  } while (page <= totalPages);
+
+  return aggregated;
 }
 
 async function createCategory(name: string) {

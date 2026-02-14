@@ -4,8 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
-
- 
+import { formatDateDDMMYYYY } from "@/lib/date-format";
 
 const formatIDR = (value: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -17,6 +16,40 @@ const formatIDR = (value: number) =>
 const parseNumber = (value: string | null, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const parseSortBy = (value: string | null): "name" | "price" =>
+  value === "price" ? "price" : "name";
+
+const parseSortOrder = (value: string | null): "asc" | "desc" =>
+  value === "desc" ? "desc" : "asc";
+
+const diffNights = (start: string, end: string) => {
+  if (!start || !end) return 0;
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+  const diff = endDate.getTime() - startDate.getTime();
+  if (Number.isNaN(diff) || diff <= 0) return 0;
+  return Math.round(diff / (1000 * 60 * 60 * 24));
+};
+
+const toDateValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const addDays = (value: string, days: number) => {
+  if (!value) return "";
+  const base = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(base.getTime())) return "";
+  base.setDate(base.getDate() + days);
+  return toDateValue(base);
+};
+
+type SearchParamsSource = {
+  get: (key: string) => string | null;
 };
 
 type SearchResponseItem = {
@@ -32,6 +65,12 @@ type SearchResponseItem = {
 
 type PublicCategory = {
   name: string;
+};
+
+type PublicCity = {
+  id: string;
+  name: string;
+  province?: string | null;
 };
 
 type SearchResponse = {
@@ -56,35 +95,45 @@ type DisplayResult = {
 };
 
 type SearchFormState = {
-  lat: string;
-  lng: string;
-  country: string;
-  locTerm: string;
+  cityId: string;
   propertyName: string;
   category: string;
   sortBy: "name" | "price";
   sortOrder: "asc" | "desc";
   startDate: string;
-  endDate: string;
+  nights: number;
   adults: number;
   children: number;
   rooms: number;
   page: number;
 };
 
-const parseSortBy = (value: string | null): "name" | "price" =>
-  value === "price" ? "price" : "name";
+const buildFormFromParams = (params: SearchParamsSource): SearchFormState => {
+  const legacyNights = diffNights(
+    params.get("start_date") ?? "",
+    params.get("end_date") ?? "",
+  );
+  const nightsFromQuery = parseNumber(params.get("nights"), 0);
+  const nights =
+    nightsFromQuery >= 1
+      ? Math.min(Math.floor(nightsFromQuery), 30)
+      : legacyNights >= 1
+        ? Math.min(legacyNights, 30)
+        : 1;
 
-const parseSortOrder = (value: string | null): "asc" | "desc" =>
-  value === "desc" ? "desc" : "asc";
-
-const diffNights = (start: string, end: string) => {
-  if (!start || !end) return 0;
-  const startDate = new Date(`${start}T00:00:00`);
-  const endDate = new Date(`${end}T00:00:00`);
-  const diff = endDate.getTime() - startDate.getTime();
-  if (Number.isNaN(diff) || diff <= 0) return 0;
-  return Math.round(diff / (1000 * 60 * 60 * 24));
+  return {
+    cityId: params.get("city_id") ?? "",
+    propertyName: params.get("property_name") ?? "",
+    category: params.get("category") ?? "",
+    sortBy: parseSortBy(params.get("sort_by")),
+    sortOrder: parseSortOrder(params.get("sort_order")),
+    startDate: params.get("start_date") ?? "",
+    nights,
+    adults: Math.max(0, parseNumber(params.get("adults"), 0)),
+    children: Math.max(0, parseNumber(params.get("children"), 0)),
+    rooms: Math.max(1, parseNumber(params.get("rooms"), 1)),
+    page: Math.max(1, parseNumber(params.get("page"), 1)),
+  };
 };
 
 export default function SearchPage() {
@@ -100,27 +149,15 @@ function SearchPageContent() {
   const searchParams = useSearchParams();
   const paramsSnapshot = searchParams.toString();
 
-  const [form, setForm] = useState<SearchFormState>(() => ({
-    lat: searchParams.get("lat") ?? "",
-    lng: searchParams.get("lng") ?? "",
-    country: searchParams.get("country") ?? "",
-    locTerm: searchParams.get("loc_term") ?? "",
-    propertyName: searchParams.get("property_name") ?? "",
-    category: searchParams.get("category") ?? "",
-    sortBy: parseSortBy(searchParams.get("sort_by")),
-    sortOrder: parseSortOrder(searchParams.get("sort_order")),
-    startDate: searchParams.get("start_date") ?? "",
-    endDate: searchParams.get("end_date") ?? "",
-    adults: parseNumber(searchParams.get("adults"), 0),
-    children: parseNumber(searchParams.get("children"), 0),
-    rooms: parseNumber(searchParams.get("rooms"), 1),
-    page: parseNumber(searchParams.get("page"), 1),
-  }));
+  const [form, setForm] = useState<SearchFormState>(() =>
+    buildFormFromParams(searchParams),
+  );
 
   const [results, setResults] = useState<DisplayResult[]>([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
   const [categories, setCategories] = useState<PublicCategory[]>([]);
+  const [cities, setCities] = useState<PublicCity[]>([]);
   const [resultsMeta, setResultsMeta] = useState({
     page: 1,
     limit: 8,
@@ -129,22 +166,7 @@ function SearchPageContent() {
   });
 
   useEffect(() => {
-    setForm({
-      lat: searchParams.get("lat") ?? "",
-      lng: searchParams.get("lng") ?? "",
-      country: searchParams.get("country") ?? "",
-      locTerm: searchParams.get("loc_term") ?? "",
-      propertyName: searchParams.get("property_name") ?? "",
-      category: searchParams.get("category") ?? "",
-      sortBy: parseSortBy(searchParams.get("sort_by")),
-      sortOrder: parseSortOrder(searchParams.get("sort_order")),
-      startDate: searchParams.get("start_date") ?? "",
-      endDate: searchParams.get("end_date") ?? "",
-      adults: parseNumber(searchParams.get("adults"), 0),
-      children: parseNumber(searchParams.get("children"), 0),
-      rooms: parseNumber(searchParams.get("rooms"), 1),
-      page: parseNumber(searchParams.get("page"), 1),
-    });
+    setForm(buildFormFromParams(searchParams));
   }, [paramsSnapshot]);
 
   const fallbackImages = useMemo(
@@ -167,14 +189,25 @@ function SearchPageContent() {
         price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
         rating: "4.8",
         tag: item.categoryName?.trim() || "Properti",
-        highlight: item.address ? "Akses mudah dan lokasi strategis" : "Properti terverifikasi",
+        highlight: item.address
+          ? "Akses mudah dan lokasi strategis"
+          : "Properti terverifikasi",
         image: item.coverUrl || fallbackImages[index % fallbackImages.length],
       } satisfies DisplayResult;
     });
   };
 
   const totalGuests = form.adults + form.children;
-  const nights = diffNights(form.startDate, form.endDate);
+  const nights = Math.max(1, form.nights);
+  const checkOutDate = addDays(form.startDate, nights);
+
+  const selectedCity = useMemo(
+    () => cities.find((city) => city.id === form.cityId) ?? null,
+    [cities, form.cityId],
+  );
+  const legacyLocTerm = (searchParams.get("loc_term") ?? "").trim();
+  const destinationLabel =
+    selectedCity?.name || legacyLocTerm || "Semua destinasi";
 
   const fetchResults = async () => {
     try {
@@ -238,17 +271,51 @@ function SearchPageContent() {
     fetchCategories();
   }, []);
 
+  const fetchCities = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/properties/cities?limit=300`);
+      if (!res.ok) return;
+      const payload = (await res.json()) as PublicCity[];
+      if (!Array.isArray(payload)) return;
+      setCities(
+        payload
+          .filter((item): item is PublicCity => {
+            return (
+              typeof item?.id === "string" &&
+              item.id.trim().length > 0 &&
+              typeof item?.name === "string" &&
+              item.name.trim().length > 0
+            );
+          })
+          .map((item) => ({
+            id: item.id,
+            name: item.name.trim(),
+            province: item.province?.trim() || null,
+          })),
+      );
+    } catch {
+      setCities([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchCities();
+  }, []);
+
   const pushSearch = (nextForm: SearchFormState) => {
     const params = new URLSearchParams();
-    if (nextForm.lat) params.set("lat", nextForm.lat);
-    if (nextForm.lng) params.set("lng", nextForm.lng);
-    if (nextForm.country) params.set("country", nextForm.country);
-    if (nextForm.startDate) params.set("start_date", nextForm.startDate);
-    if (nextForm.endDate) params.set("end_date", nextForm.endDate);
-    params.set("adults", String(nextForm.adults));
-    params.set("children", String(nextForm.children));
-    params.set("rooms", String(nextForm.rooms));
-    params.set("loc_term", nextForm.locTerm.trim());
+    if (nextForm.cityId) params.set("city_id", nextForm.cityId);
+    if (nextForm.startDate) {
+      params.set("start_date", nextForm.startDate);
+      const computedEndDate = addDays(nextForm.startDate, Math.max(1, nextForm.nights));
+      if (computedEndDate) {
+        params.set("end_date", computedEndDate);
+      }
+    }
+    params.set("nights", String(Math.max(1, Math.min(30, nextForm.nights))));
+    params.set("adults", String(Math.max(0, nextForm.adults)));
+    params.set("children", String(Math.max(0, nextForm.children)));
+    params.set("rooms", String(Math.max(1, nextForm.rooms)));
     if (nextForm.propertyName.trim()) {
       params.set("property_name", nextForm.propertyName.trim());
     }
@@ -286,28 +353,27 @@ function SearchPageContent() {
               Temukan properti dengan harga terbaik untuk perjalanan Anda.
             </h1>
             <p className="text-sm text-slate-200">
-              {form.locTerm ? form.locTerm : "Semua destinasi"} - {nights || 0} malam -
-              {" "}
+              {destinationLabel} - {nights} malam - {" "}
               {totalGuests > 0 ? `${totalGuests} tamu` : "Tamu fleksibel"}
             </p>
           </div>
           <div className="grid gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Check-in</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Destinasi</p>
               <p className="mt-2 text-lg font-semibold">
-                {form.startDate || "-"}
+                {destinationLabel}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Tanggal berangkat</p>
+              <p className="mt-2 text-lg font-semibold">
+                {form.startDate ? formatDateDDMMYYYY(form.startDate) : "-"}
               </p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Check-out</p>
               <p className="mt-2 text-lg font-semibold">
-                {form.endDate || "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Durasi</p>
-              <p className="mt-2 text-lg font-semibold">
-                {nights || 0} malam
+                {checkOutDate ? formatDateDDMMYYYY(checkOutDate) : "-"}
               </p>
             </div>
             <div>
@@ -337,19 +403,25 @@ function SearchPageContent() {
           </div>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Lokasi
-            <input
-              value={form.locTerm}
+            Kota destinasi
+            <select
+              value={form.cityId}
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
-                  locTerm: event.target.value,
+                  cityId: event.target.value,
                   page: 1,
                 }))
               }
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-              placeholder="Cari kota atau destinasi"
-            />
+            >
+              <option value="">Semua kota</option>
+              {cities.map((city) => (
+                <option key={city.id} value={city.id}>
+                  {city.province ? `${city.name}, ${city.province}` : city.name}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
@@ -391,7 +463,7 @@ function SearchPageContent() {
           </label>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Check-in
+            Tanggal berangkat
             <input
               type="date"
               value={form.startDate}
@@ -407,19 +479,24 @@ function SearchPageContent() {
           </label>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Check-out
-            <input
-              type="date"
-              value={form.endDate}
+            Durasi menginap
+            <select
+              value={String(nights)}
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
-                  endDate: event.target.value,
+                  nights: Math.max(1, Number(event.target.value) || 1),
                   page: 1,
                 }))
               }
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-            />
+            >
+              {Array.from({ length: 30 }, (_, index) => index + 1).map((night) => (
+                <option key={night} value={night}>
+                  {night} malam
+                </option>
+              ))}
+            </select>
           </label>
 
           <div className="grid grid-cols-2 gap-4">
@@ -432,7 +509,7 @@ function SearchPageContent() {
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    adults: Number(event.target.value),
+                    adults: Math.max(0, Number(event.target.value) || 0),
                     page: 1,
                   }))
                 }
@@ -448,7 +525,7 @@ function SearchPageContent() {
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    children: Number(event.target.value),
+                    children: Math.max(0, Number(event.target.value) || 0),
                     page: 1,
                   }))
                 }
@@ -465,7 +542,7 @@ function SearchPageContent() {
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
-                  rooms: Number(event.target.value),
+                  rooms: Math.max(1, Number(event.target.value) || 1),
                   page: 1,
                 }))
               }
@@ -485,7 +562,9 @@ function SearchPageContent() {
             {resultsLoading
               ? "Memuat hasil pencarian..."
               : `Menampilkan ${resultsMeta.total} properti${
-                  form.locTerm ? ` di sekitar "${form.locTerm}".` : "."
+                  destinationLabel !== "Semua destinasi"
+                    ? ` di ${destinationLabel}.`
+                    : "."
                 }`}
           </div>
         </aside>
@@ -572,7 +651,7 @@ function SearchPageContent() {
                           {" "}/ malam
                         </span>
                       </p>
-                      {item.price > 0 && nights > 0 && (
+                      {item.price > 0 && form.startDate && nights > 0 && (
                         <p className="text-xs text-slate-500">
                           Total {formatIDR(item.price * nights * Math.max(form.rooms, 1))} ·{" "}
                           {nights} malam × {Math.max(form.rooms, 1)} kamar

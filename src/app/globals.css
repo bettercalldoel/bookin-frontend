@@ -1,34 +1,128 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f3f6f3;
+  --foreground: #1b2b32;
+  --surface: #ffffff;
+  --surface-soft: #eef3f0;
+  --muted: #5a6e79;
+  --accent: #0f766e;
+  --accent-strong: #155e75;
+  --ring: #0d9488;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-ui-sans);
+  --font-mono: var(--font-ui-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-ui-sans), "Avenir Next", "Segoe UI", system-ui,
+    sans-serif;
+  letter-spacing: -0.01em;
+  background-image:
+    radial-gradient(
+      circle at 8% -10%,
+      rgba(13, 148, 136, 0.16),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 86% -10%,
+      rgba(14, 116, 144, 0.14),
+      transparent 38%
+    ),
+    linear-gradient(165deg, #f8f9f6 0%, #eef3ef 54%, #f4f7f2 100%);
+}
+
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.34;
+  background-image: radial-gradient(rgba(27, 43, 50, 0.09) 0.55px, transparent 0.55px);
+  background-size: 10px 10px;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), "Iowan Old Style", "Times New Roman", serif;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: rgba(13, 148, 136, 0.18);
+  color: #0f172a;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .bg-grid-slate {
   background-image: linear-gradient(
       to right,
-      rgba(148, 163, 184, 0.18) 1px,
+      rgba(90, 110, 121, 0.14) 1px,
       transparent 1px
     ),
     linear-gradient(
       to bottom,
-      rgba(148, 163, 184, 0.18) 1px,
+      rgba(90, 110, 121, 0.14) 1px,
       transparent 1px
     );
-  background-size: 48px 48px;
-  opacity: 0.3;
+  background-size: 52px 52px;
+  opacity: 0.26;
+}
+
+.surface-panel {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(248, 250, 249, 0.88) 45%,
+    rgba(239, 244, 241, 0.82) 100%
+  );
+  box-shadow:
+    0 18px 44px -26px rgba(15, 23, 42, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.tenant-dashboard-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.tenant-dashboard-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(circle at 12% 14%, rgba(13, 148, 136, 0.12), transparent 38%),
+    radial-gradient(circle at 90% 6%, rgba(8, 145, 178, 0.12), transparent 35%);
+}
+
+.animate-rise-in {
+  animation: rise-in 0.55s ease-out both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

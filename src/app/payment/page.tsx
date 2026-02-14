@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
+import { formatDateDDMMYYYY } from "@/lib/date-format";
 
 type PaymentMethod = "MANUAL_TRANSFER" | "XENDIT";
 
@@ -18,12 +19,7 @@ const formatIDR = (value: string) => {
 };
 
 const formatDateTime = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return formatDateDDMMYYYY(value, value);
 };
 
 export default function PaymentPage() {
@@ -148,7 +144,7 @@ function PaymentContent() {
           <p className="font-semibold text-slate-900">{propertyName}</p>
           <p>{roomName}</p>
           <p>
-            {checkIn} &rarr; {checkOut}
+            {formatDateTime(checkIn)} &rarr; {formatDateTime(checkOut)}
           </p>
         </div>
         <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">

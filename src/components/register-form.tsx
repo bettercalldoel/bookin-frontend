@@ -140,7 +140,7 @@ export default function RegisterForm({ accountType }: RegisterFormProps) {
                 <div>
                   {isTenant ? "Sudah terdaftar sebagai tenant?" : "Sudah punya akun?"}{" "}
                   <a
-                    href="/login"
+                    href={isTenant ? "/tenant-login" : "/login"}
                     className="text-sky-600 underline hover:text-sky-700"
                   >
                     Masuk

@@ -121,6 +121,27 @@ type TenantPaymentProof = {
   };
 };
 
+type TenantPaymentProofMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+  status: PaymentProofStatus | null;
+  bookingStatus: BookingStatus | null;
+  keyword: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  sortBy: "submittedAt" | "total" | "checkIn" | "orderNo";
+  sortOrder: "asc" | "desc";
+};
+
+type TenantPaymentProofResponse = {
+  data: TenantPaymentProof[];
+  meta: TenantPaymentProofMeta;
+};
+
 type TenantOrderRow = {
   id: string;
   orderNo: string;
@@ -272,6 +293,16 @@ type TenantActionConfirmPayload =
       name: string;
     }
   | {
+      type: "update-category";
+      id: string;
+      name: string;
+    }
+  | {
+      type: "delete-category";
+      id: string;
+      name: string;
+    }
+  | {
       type: "apply-room-sidebar";
       roomTypeId: string;
       dates: string[];
@@ -287,6 +318,11 @@ type TenantActionConfirmPayload =
       type: "payment-proof-review";
       paymentProofId: string;
       action: "approve" | "reject";
+    }
+  | {
+      type: "cancel-order";
+      bookingId: string;
+      orderNo: string;
     }
   | {
       type: "submit-review-reply";
@@ -469,6 +505,22 @@ const defaultSalesMeta: SalesMeta = {
   keyword: null,
 };
 
+const defaultTenantPaymentProofMeta: TenantPaymentProofMeta = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+  hasNext: false,
+  hasPrev: false,
+  status: null,
+  bookingStatus: null,
+  keyword: null,
+  startDate: null,
+  endDate: null,
+  sortBy: "submittedAt",
+  sortOrder: "desc",
+};
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -573,12 +625,6 @@ const parsePositiveIntInput = (value: string): number | null => {
   return parsed;
 };
 
-const paymentProofStatuses: PaymentProofStatus[] = [
-  "SUBMITTED",
-  "APPROVED",
-  "REJECTED",
-];
-
 const toSafeAmount = (value: string) => {
   const amount = Number(value);
   return Number.isFinite(amount) ? amount : 0;
@@ -588,25 +634,6 @@ const toTimestamp = (value: string | null) => {
   if (!value) return 0;
   const timestamp = new Date(value).getTime();
   return Number.isNaN(timestamp) ? 0 : timestamp;
-};
-
-const dedupeLatestProofsByBooking = (proofs: TenantPaymentProof[]) => {
-  const map = new Map<string, TenantPaymentProof>();
-
-  proofs.forEach((proof) => {
-    const existing = map.get(proof.booking.id);
-    if (!existing) {
-      map.set(proof.booking.id, proof);
-      return;
-    }
-    if (toTimestamp(proof.submittedAt) > toTimestamp(existing.submittedAt)) {
-      map.set(proof.booking.id, proof);
-    }
-  });
-
-  return Array.from(map.values()).sort(
-    (a, b) => toTimestamp(b.submittedAt) - toTimestamp(a.submittedAt),
-  );
 };
 
 const mapPaymentProofsToOrders = (proofs: TenantPaymentProof[]): TenantOrderRow[] => {
@@ -632,9 +659,7 @@ const mapPaymentProofsToOrders = (proofs: TenantPaymentProof[]): TenantOrderRow[
     });
   });
 
-  return Array.from(orderMap.values()).sort(
-    (a, b) => toTimestamp(b.submittedAt) - toTimestamp(a.submittedAt),
-  );
+  return Array.from(orderMap.values());
 };
 
 const toTrendChart = (
@@ -798,6 +823,16 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const [statusFilter, setStatusFilter] = useState<"ALL" | BookingStatus>(
     "ALL",
   );
+  const [transactionPage, setTransactionPage] = useState(1);
+  const [transactionLimit, setTransactionLimit] = useState(10);
+  const [transactionSortBy, setTransactionSortBy] = useState<
+    "submittedAt" | "total" | "checkIn" | "orderNo"
+  >("submittedAt");
+  const [transactionSortOrder, setTransactionSortOrder] = useState<"asc" | "desc">(
+    "desc",
+  );
+  const [tenantPaymentProofMeta, setTenantPaymentProofMeta] =
+    useState<TenantPaymentProofMeta>(defaultTenantPaymentProofMeta);
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const [tenantReviews, setTenantReviews] = useState<TenantReview[]>([]);
   const [tenantReviewsLoading, setTenantReviewsLoading] = useState(false);
@@ -853,6 +888,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [categoryNameDrafts, setCategoryNameDrafts] = useState<
+    Record<string, string>
+  >({});
   const [categoryCreateLoading, setCategoryCreateLoading] = useState(false);
   const [categoryCreateError, setCategoryCreateError] = useState<string | null>(
     null,
@@ -910,18 +949,6 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     () => mapPaymentProofsToOrders(tenantPaymentProofs),
     [tenantPaymentProofs],
   );
-
-  const filteredOrders = useMemo(() => {
-    if (statusFilter === "ALL") return tenantOrders;
-    if (statusFilter === "MENUNGGU_PEMBAYARAN") {
-      return tenantOrders.filter(
-        (order) =>
-          order.status === "MENUNGGU_PEMBAYARAN" ||
-          order.status === "MENUNGGU_KONFIRMASI_PEMBAYARAN",
-      );
-    }
-    return tenantOrders.filter((order) => order.status === statusFilter);
-  }, [statusFilter, tenantOrders]);
 
   const overviewOrders = useMemo<TenantOrderRow[]>(
     () => mapPaymentProofsToOrders(overviewPaymentProofs),
@@ -1083,16 +1110,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     [overviewPaymentProofs],
   );
 
-  const filteredTransactionRows = useMemo(() => {
-    const keyword = transactionSearch.trim().toLowerCase();
-    if (!keyword) return filteredOrders;
-    return filteredOrders.filter((order) =>
-      [order.orderNo, order.property, order.user, order.checkIn]
-        .join(" ")
-        .toLowerCase()
-      .includes(keyword),
-    );
-  }, [filteredOrders, transactionSearch]);
+  const filteredTransactionRows = useMemo(
+    () => tenantOrders,
+    [tenantOrders],
+  );
 
   const salesDateRangeInvalid = useMemo(() => {
     if (!dateRange.from || !dateRange.to) return false;
@@ -1474,6 +1495,56 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     });
   };
 
+  const handleStartEditCategory = (category: CatalogCategory) => {
+    setCategoryCreateError(null);
+    setCategoryCreateFeedback(null);
+    setEditingCategoryId(category.id);
+    setCategoryNameDrafts((prev) => ({
+      ...prev,
+      [category.id]: prev[category.id] ?? category.name,
+    }));
+  };
+
+  const handleCancelEditCategory = () => {
+    setEditingCategoryId(null);
+  };
+
+  const handleSubmitEditCategory = (category: CatalogCategory) => {
+    const nextName = (categoryNameDrafts[category.id] ?? "").trim();
+    if (!nextName) {
+      setCategoryCreateError("Nama kategori wajib diisi.");
+      return;
+    }
+
+    setCategoryCreateError(null);
+    setCategoryCreateFeedback(null);
+    setTenantActionConfirm({
+      title: "Konfirmasi Update Kategori",
+      description: `Ubah nama kategori "${category.name}" menjadi "${nextName}"?`,
+      confirmLabel: "Update",
+      payload: {
+        type: "update-category",
+        id: category.id,
+        name: nextName,
+      },
+    });
+  };
+
+  const handleDeleteCategory = (category: CatalogCategory) => {
+    setCategoryCreateError(null);
+    setCategoryCreateFeedback(null);
+    setTenantActionConfirm({
+      title: "Konfirmasi Hapus Kategori",
+      description: `Hapus kategori "${category.name}"? Properti lama tetap aman, tapi kategori ini tidak bisa dipakai lagi.`,
+      confirmLabel: "Hapus",
+      payload: {
+        type: "delete-category",
+        id: category.id,
+        name: category.name,
+      },
+    });
+  };
+
   const loadAvailability = async () => {
     if (!selectedRoomId) {
       setAvailabilityError("Pilih room terlebih dahulu.");
@@ -1773,9 +1844,29 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     });
   };
 
-  const fetchTenantPaymentProofsByStatus = async (status: PaymentProofStatus) => {
-    const query = new URLSearchParams({ status });
-    return fetchJson<TenantPaymentProof[]>(
+  const fetchTenantPaymentProofs = async (params: {
+    status?: PaymentProofStatus;
+    bookingStatus?: BookingStatus;
+    keyword?: string;
+    startDate?: string;
+    endDate?: string;
+    sortBy?: "submittedAt" | "total" | "checkIn" | "orderNo";
+    sortOrder?: "asc" | "desc";
+    page?: number;
+    limit?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    if (params.bookingStatus) query.set("bookingStatus", params.bookingStatus);
+    if (params.keyword) query.set("keyword", params.keyword);
+    if (params.startDate) query.set("startDate", params.startDate);
+    if (params.endDate) query.set("endDate", params.endDate);
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+    if (params.page) query.set("page", String(params.page));
+    if (params.limit) query.set("limit", String(params.limit));
+
+    return fetchJson<TenantPaymentProofResponse>(
       `/bookings/tenant/payment-proofs?${query.toString()}`,
     );
   };
@@ -1784,35 +1875,37 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     try {
       setTenantPaymentProofsLoading(true);
       setTenantPaymentProofsError(null);
-      const results = await Promise.allSettled(
-        paymentProofStatuses.map((status) => fetchTenantPaymentProofsByStatus(status)),
+      const response = await fetchTenantPaymentProofs({
+        bookingStatus: statusFilter === "ALL" ? undefined : statusFilter,
+        keyword: transactionSearch.trim() || undefined,
+        sortBy: transactionSortBy,
+        sortOrder: transactionSortOrder,
+        page: transactionPage,
+        limit: transactionLimit,
+      });
+
+      setTenantPaymentProofs(response.data ?? []);
+      setTenantPaymentProofMeta(
+        response.meta ?? {
+          ...defaultTenantPaymentProofMeta,
+          page: transactionPage,
+          limit: transactionLimit,
+          sortBy: transactionSortBy,
+          sortOrder: transactionSortOrder,
+        },
       );
-
-      const successful = results
-        .filter((result): result is PromiseFulfilledResult<TenantPaymentProof[]> =>
-          result.status === "fulfilled",
-        )
-        .flatMap((result) => result.value);
-      const failed = results.filter((result) => result.status === "rejected");
-
-      if (failed.length === paymentProofStatuses.length) {
-        const firstReason = failed[0]?.reason;
-        throw firstReason instanceof Error
-          ? firstReason
-          : new Error("Semua data bukti pembayaran gagal dimuat.");
-      }
-
-      setTenantPaymentProofs(dedupeLatestProofsByBooking(successful));
-      if (failed.length > 0) {
-        setTenantPaymentProofsError(
-          "Sebagian data bukti pembayaran belum berhasil dimuat.",
-        );
-      }
     } catch (err) {
       setTenantPaymentProofsError(
         err instanceof Error ? err.message : "Gagal memuat bukti pembayaran.",
       );
       setTenantPaymentProofs([]);
+      setTenantPaymentProofMeta({
+        ...defaultTenantPaymentProofMeta,
+        page: transactionPage,
+        limit: transactionLimit,
+        sortBy: transactionSortBy,
+        sortOrder: transactionSortOrder,
+      });
     } finally {
       setTenantPaymentProofsLoading(false);
     }
@@ -1834,11 +1927,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         replied: "false",
       });
 
-      const [proofResults, reviewResult, pendingReviewResult] = await Promise.all([
-        Promise.allSettled(
-          paymentProofStatuses.map((status) =>
-            fetchTenantPaymentProofsByStatus(status),
-          ),
+      const [proofResult, reviewResult, pendingReviewResult] = await Promise.all([
+        fetchTenantPaymentProofs({
+          sortBy: "submittedAt",
+          sortOrder: "desc",
+          page: 1,
+          limit: 100,
+        }).then(
+          (data) => ({ ok: true as const, data }),
+          (error) => ({ ok: false as const, error }),
         ),
         fetchJson<TenantReviewResponse>(
           `/bookings/tenant/reviews?${reviewQuery.toString()}`,
@@ -1854,20 +1951,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         ),
       ]);
 
-      const successfulProofs = proofResults
-        .filter((result): result is PromiseFulfilledResult<TenantPaymentProof[]> =>
-          result.status === "fulfilled",
-        )
-        .flatMap((result) => result.value);
-      const failedProofs = proofResults.filter(
-        (result) => result.status === "rejected",
-      );
-
-      if (failedProofs.length === paymentProofStatuses.length) {
-        const firstReason = failedProofs[0]?.reason;
-        throw firstReason instanceof Error
-          ? firstReason
-          : new Error("Semua data payment proof gagal dimuat.");
+      if (!proofResult.ok) {
+        throw proofResult.error instanceof Error
+          ? proofResult.error
+          : new Error("Data payment proof gagal dimuat.");
       }
 
       const reviewTotal = reviewResult.ok
@@ -1877,14 +1964,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         ? (pendingReviewResult.data.meta.total ?? pendingReviewResult.data.data.length)
         : 0;
 
-      if (failedProofs.length > 0 || !reviewResult.ok || !pendingReviewResult.ok) {
+      if (!reviewResult.ok || !pendingReviewResult.ok) {
         setOverviewNotice(
           "Sebagian data overview tidak lengkap. Coba refresh setelah backend siap.",
         );
       }
 
-      const allProofs = successfulProofs;
-      setOverviewPaymentProofs(dedupeLatestProofsByBooking(allProofs));
+      setOverviewPaymentProofs(proofResult.data.data ?? []);
       setOverviewReviewsTotal(reviewTotal);
       setOverviewPendingReviews(pendingReviewTotal);
     } catch (err) {
@@ -2304,6 +2390,21 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     });
   };
 
+  const handleCancelOrderByTenant = (bookingId: string, orderNo: string) => {
+    setPaymentActionError(null);
+    setPaymentActionFeedback(null);
+    setTenantActionConfirm({
+      title: "Konfirmasi Batalkan Pesanan",
+      description: `Batalkan pesanan ${orderNo}? Pesanan ini hanya bisa dibatalkan sebelum user upload bukti bayar.`,
+      confirmLabel: "Batalkan",
+      payload: {
+        type: "cancel-order",
+        bookingId,
+        orderNo,
+      },
+    });
+  };
+
   const handleSubmitReply = (reviewId: string) => {
     const draft = reviewDrafts[reviewId]?.trim() ?? "";
     if (!draft) {
@@ -2357,6 +2458,49 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           });
           setNewCategoryName("");
           setCategoryCreateFeedback("Kategori berhasil disimpan.");
+          break;
+        }
+        case "update-category": {
+          setCategoryCreateLoading(true);
+          setCategoryCreateError(null);
+          setCategoryCreateFeedback(null);
+
+          const updated = await fetchJson<CatalogCategory>(
+            `/catalog/categories/${payload.id}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ name: payload.name }),
+            },
+          );
+
+          setCatalogCategories((prev) =>
+            prev
+              .map((item) =>
+                item.id === updated.id ? { ...item, name: updated.name } : item,
+              )
+              .sort((a, b) => a.name.localeCompare(b.name, "id-ID")),
+          );
+          setEditingCategoryId(null);
+          setCategoryCreateFeedback("Kategori berhasil diperbarui.");
+          break;
+        }
+        case "delete-category": {
+          setCategoryCreateLoading(true);
+          setCategoryCreateError(null);
+          setCategoryCreateFeedback(null);
+
+          await fetchJson<{ message: string; id: string }>(
+            `/catalog/categories/${payload.id}`,
+            {
+              method: "DELETE",
+            },
+          );
+
+          setCatalogCategories((prev) =>
+            prev.filter((item) => item.id !== payload.id),
+          );
+          setEditingCategoryId((prev) => (prev === payload.id ? null : prev));
+          setCategoryCreateFeedback("Kategori berhasil dihapus.");
           break;
         }
         case "apply-room-sidebar": {
@@ -2432,6 +2576,24 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           await loadTenantPaymentProofs();
           break;
         }
+        case "cancel-order": {
+          setPaymentActionLoadingId(payload.bookingId);
+          setPaymentActionError(null);
+          setPaymentActionFeedback(null);
+
+          const result = await fetchJson<{ message?: string }>(
+            `/bookings/tenant/${payload.bookingId}/cancel`,
+            {
+              method: "POST",
+            },
+          );
+
+          setPaymentActionFeedback(
+            result.message ?? `Pesanan ${payload.orderNo} berhasil dibatalkan.`,
+          );
+          await loadTenantPaymentProofs();
+          break;
+        }
         case "submit-review-reply": {
           setReviewReplyLoadingId(payload.reviewId);
           setTenantReviewsError(null);
@@ -2466,6 +2628,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         case "create-category":
           setCategoryCreateError(errorMessage ?? "Gagal menyimpan kategori.");
           break;
+        case "update-category":
+          setCategoryCreateError(errorMessage ?? "Gagal memperbarui kategori.");
+          break;
+        case "delete-category":
+          setCategoryCreateError(errorMessage ?? "Gagal menghapus kategori.");
+          break;
         case "apply-room-sidebar":
           setRoomActionError(errorMessage ?? "Gagal menerapkan perubahan room.");
           break;
@@ -2474,6 +2642,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           break;
         case "payment-proof-review":
           setPaymentActionError(errorMessage ?? "Gagal memproses bukti pembayaran.");
+          break;
+        case "cancel-order":
+          setPaymentActionError(errorMessage ?? "Gagal membatalkan pesanan.");
           break;
         case "submit-review-reply":
           setTenantReviewsError(errorMessage ?? "Gagal mengirim balasan review.");
@@ -2488,6 +2659,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         case "create-category":
           setCategoryCreateLoading(false);
           break;
+        case "update-category":
+          setCategoryCreateLoading(false);
+          break;
+        case "delete-category":
+          setCategoryCreateLoading(false);
+          break;
         case "apply-room-sidebar":
           setRoomActionLoading(false);
           break;
@@ -2495,6 +2672,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           setRateRulesLoading(false);
           break;
         case "payment-proof-review":
+          setPaymentActionLoadingId(null);
+          break;
+        case "cancel-order":
           setPaymentActionLoadingId(null);
           break;
         case "submit-review-reply":
@@ -2570,9 +2750,27 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   }, [active, catalogCategories.length]);
 
   useEffect(() => {
+    setTransactionPage(1);
+  }, [
+    statusFilter,
+    transactionSearch,
+    transactionLimit,
+    transactionSortBy,
+    transactionSortOrder,
+  ]);
+
+  useEffect(() => {
     if (active !== "order-management") return;
     loadTenantPaymentProofs();
-  }, [active]);
+  }, [
+    active,
+    statusFilter,
+    transactionSearch,
+    transactionPage,
+    transactionLimit,
+    transactionSortBy,
+    transactionSortOrder,
+  ]);
 
   useEffect(() => {
     if (active !== "dashboard-overview" && active !== "sales-report") return;
@@ -4052,15 +4250,36 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         className={`h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                       />
                     </div>
-                    <button
-                      type="button"
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900"
-                      aria-label="Filter"
+                    <select
+                      value={transactionSortBy}
+                      onChange={(event) =>
+                        setTransactionSortBy(
+                          event.target.value as
+                            | "submittedAt"
+                            | "total"
+                            | "checkIn"
+                            | "orderNo",
+                        )
+                      }
+                      className={`h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                      aria-label="Sort by"
                     >
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
-                        <path d="M4 5H20L13 13V19L11 20V13L4 5Z" strokeWidth="1.8" strokeLinejoin="round" />
-                      </svg>
-                    </button>
+                      <option value="submittedAt">Sort: Submitted</option>
+                      <option value="checkIn">Sort: Check-In</option>
+                      <option value="total">Sort: Amount</option>
+                      <option value="orderNo">Sort: Order ID</option>
+                    </select>
+                    <select
+                      value={transactionSortOrder}
+                      onChange={(event) =>
+                        setTransactionSortOrder(event.target.value as "asc" | "desc")
+                      }
+                      className={`h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                      aria-label="Sort order"
+                    >
+                      <option value="desc">Newest</option>
+                      <option value="asc">Oldest</option>
+                    </select>
                   </div>
 
                   {tenantPaymentProofsError ? (
@@ -4100,11 +4319,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       ) : (
                         filteredTransactionRows.map((order) => {
                           const statusMeta = getTransactionStatusMeta(order.status);
+                          const hasProofLink = Boolean(order.paymentProofImageUrl);
                           const canReview =
+                            hasProofLink &&
                             order.paymentProofStatus === "SUBMITTED" &&
                             (order.status === "MENUNGGU_KONFIRMASI_PEMBAYARAN" ||
                               order.status === "MENUNGGU_PEMBAYARAN");
-                          const hasProofLink = Boolean(order.paymentProofImageUrl);
+                          const canCancelByTenant =
+                            order.status === "MENUNGGU_PEMBAYARAN" && !hasProofLink;
                           return (
                             <tr key={order.id} className="hover:bg-slate-50/70">
                               <td className="px-6 py-4 font-semibold text-slate-800">
@@ -4165,6 +4387,18 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                       </button>
                                     </>
                                   ) : null}
+                                  {canCancelByTenant ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleCancelOrderByTenant(order.id, order.orderNo)
+                                      }
+                                      disabled={paymentActionLoadingId === order.id}
+                                      className="flex h-9 items-center justify-center rounded-lg border border-amber-200 px-3 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-60"
+                                    >
+                                      Cancel
+                                    </button>
+                                  ) : null}
                                   {hasProofLink ? (
                                     <a
                                       href={order.paymentProofImageUrl}
@@ -4207,11 +4441,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   ) : (
                     filteredTransactionRows.map((order) => {
                       const statusMeta = getTransactionStatusMeta(order.status);
+                      const hasProofLink = Boolean(order.paymentProofImageUrl);
                       const canReview =
+                        hasProofLink &&
                         order.paymentProofStatus === "SUBMITTED" &&
                         (order.status === "MENUNGGU_KONFIRMASI_PEMBAYARAN" ||
                           order.status === "MENUNGGU_PEMBAYARAN");
-                      const hasProofLink = Boolean(order.paymentProofImageUrl);
+                      const canCancelByTenant =
+                        order.status === "MENUNGGU_PEMBAYARAN" && !hasProofLink;
                       return (
                         <div key={order.id} className="space-y-3 p-4">
                           <div className="flex items-start justify-between gap-2">
@@ -4277,6 +4514,18 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                   </button>
                                 </>
                               ) : null}
+                              {canCancelByTenant ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCancelOrderByTenant(order.id, order.orderNo)
+                                  }
+                                  disabled={paymentActionLoadingId === order.id}
+                                  className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700"
+                                >
+                                  Cancel
+                                </button>
+                              ) : null}
                               {hasProofLink ? (
                                 <a
                                   href={order.paymentProofImageUrl}
@@ -4307,6 +4556,57 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       );
                     })
                   )}
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs text-slate-500">
+                    Menampilkan {filteredTransactionRows.length} dari{" "}
+                    {tenantPaymentProofMeta.total} transaksi.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-500" htmlFor="transaction-limit">
+                      Rows
+                    </label>
+                    <select
+                      id="transaction-limit"
+                      value={transactionLimit}
+                      onChange={(event) =>
+                        setTransactionLimit(Number(event.target.value) || 10)
+                      }
+                      className={`h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 ${INPUT_THEME.focus}`}
+                    >
+                      {[5, 10, 20, 50].map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTransactionPage((prev) => Math.max(prev - 1, 1))
+                      }
+                      disabled={
+                        tenantPaymentProofsLoading || !tenantPaymentProofMeta.hasPrev
+                      }
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+                    <span className="text-xs font-semibold text-slate-600">
+                      {tenantPaymentProofMeta.page} / {tenantPaymentProofMeta.totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTransactionPage((prev) => prev + 1)}
+                      disabled={
+                        tenantPaymentProofsLoading || !tenantPaymentProofMeta.hasNext
+                      }
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -4500,13 +4800,67 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         categoryRows.map((category) => (
                           <tr key={category.id}>
                             <td className="px-6 py-4 font-medium text-slate-900">
-                              {category.name}
+                              {editingCategoryId === category.id ? (
+                                <input
+                                  type="text"
+                                  value={categoryNameDrafts[category.id] ?? category.name}
+                                  onChange={(event) =>
+                                    setCategoryNameDrafts((prev) => ({
+                                      ...prev,
+                                      [category.id]: event.target.value,
+                                    }))
+                                  }
+                                  className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
+                                />
+                              ) : (
+                                category.name
+                              )}
                             </td>
                             <td className="px-6 py-4 text-slate-500">
                               {category.propertiesCount} properties
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <span className="text-xs text-slate-400">-</span>
+                              <div className="flex items-center justify-end gap-2">
+                                {editingCategoryId === category.id ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSubmitEditCategory(category)}
+                                      disabled={categoryCreateLoading}
+                                      className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-60"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditCategory}
+                                      disabled={categoryCreateLoading}
+                                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditCategory(category)}
+                                      disabled={categoryCreateLoading}
+                                      className="rounded-lg border border-cyan-200 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition hover:bg-cyan-50 disabled:opacity-60"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteCategory(category)}
+                                      disabled={categoryCreateLoading}
+                                      className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
+                                    >
+                                      Delete
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -5015,6 +5369,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         confirmLabel={tenantActionConfirm?.confirmLabel ?? "Ya, lanjutkan"}
         confirmTone={
           tenantActionConfirm?.payload.type === "delete-rate-rule" ||
+          tenantActionConfirm?.payload.type === "cancel-order" ||
           (tenantActionConfirm?.payload.type === "payment-proof-review" &&
             tenantActionConfirm.payload.action === "reject")
             ? "danger"

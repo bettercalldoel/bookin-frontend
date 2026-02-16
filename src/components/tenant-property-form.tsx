@@ -685,11 +685,11 @@ export default function TenantPropertyForm({
     setError("");
     setInfo("");
     if (!roomDescription.trim()) {
-      setError("Deskripsi room wajib diisi.");
+      setError("Deskripsi kamar wajib diisi.");
       return;
     }
     if (!roomPrice.trim()) {
-      setError("Harga room wajib diisi.");
+      setError("Harga kamar wajib diisi.");
       return;
     }
     if (!roomGuests.trim()) {
@@ -704,7 +704,7 @@ export default function TenantPropertyForm({
     }
 
     if (!roomName.trim()) {
-      setError("Nama room wajib diisi.");
+      setError("Nama kamar wajib diisi.");
       return;
     }
     if (!roomUnits.trim()) {
@@ -755,7 +755,7 @@ export default function TenantPropertyForm({
     setRoomPrice(sanitizeNumberInput(String(room.price)));
     setRoomUnits(String(room.totalUnits));
     setRoomGuests(String(room.maxGuests));
-    setInfo("Mode edit room aktif.");
+    setInfo("Mode edit kamar aktif.");
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -794,7 +794,7 @@ export default function TenantPropertyForm({
       return;
     }
     if (stagedFiles.length > 0) {
-      setError("Upload photo terlebih dahulu.");
+      setError("Unggah foto terlebih dahulu.");
       return;
     }
     if (!galleryUrls.length) {
@@ -809,7 +809,7 @@ export default function TenantPropertyForm({
     let draftsToCreate = roomDrafts;
     if (!editingPropertyId && roomDraftMode === "FULL") {
       if (!roomDescription.trim() || !roomPrice.trim() || !roomGuests.trim()) {
-        setError("Lengkapi harga, maksimal tamu, dan deskripsi room.");
+        setError("Lengkapi harga, maksimal tamu, dan deskripsi kamar.");
         return;
       }
       draftsToCreate = [buildFullPropertyDraft()];
@@ -900,15 +900,15 @@ export default function TenantPropertyForm({
     setInfo("");
 
     if (!selectedPropertyId) {
-      setError("Pilih properti terlebih dahulu untuk menambah room.");
+      setError("Pilih properti terlebih dahulu untuk menambah kamar.");
       return;
     }
     if (!roomName.trim() || !roomDescription.trim()) {
-      setError("Nama dan deskripsi room wajib diisi.");
+      setError("Nama dan deskripsi kamar wajib diisi.");
       return;
     }
     if (!roomPrice.trim()) {
-      setError("Harga room wajib diisi.");
+      setError("Harga kamar wajib diisi.");
       return;
     }
     if (!roomUnits.trim() || !roomGuests.trim()) {
@@ -933,7 +933,7 @@ export default function TenantPropertyForm({
       resetRoomForm();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Gagal menyimpan room.";
+        err instanceof Error ? err.message : "Gagal menyimpan kamar.";
       setError(message);
     } finally {
       setIsSavingRoom(false);
@@ -941,7 +941,7 @@ export default function TenantPropertyForm({
   };
 
   const handleDeleteRoom = async (roomId: string) => {
-    if (!window.confirm("Hapus room ini?")) return;
+    if (!window.confirm("Hapus kamar ini?")) return;
     setError("");
     setInfo("");
     try {
@@ -953,7 +953,7 @@ export default function TenantPropertyForm({
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Gagal menghapus room.";
+        err instanceof Error ? err.message : "Gagal menghapus kamar.";
       setError(message);
     }
   };
@@ -981,7 +981,7 @@ export default function TenantPropertyForm({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                Property Management
+                Kelola Properti
               </p>
               <h2 className="mt-2 text-xl font-semibold text-slate-900">
                 Daftar properti yang sudah dibuat
@@ -992,7 +992,7 @@ export default function TenantPropertyForm({
               onClick={loadProperties}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             >
-              Refresh
+              Muat Ulang
             </button>
           </div>
           {isLoadingProperties ? (
@@ -1031,7 +1031,7 @@ export default function TenantPropertyForm({
                                   ? `, ${property.province}`
                                   : ""
                               }`
-                            : `City ID: ${property.cityId}`}
+                            : `ID Kota: ${property.cityId}`}
                         </p>
                       </div>
                       {property.coverUrl ? (
@@ -1042,7 +1042,7 @@ export default function TenantPropertyForm({
                         />
                       ) : (
                         <div className="flex h-16 w-20 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-400">
-                          No image
+                          Tidak ada gambar
                         </div>
                       )}
                     </div>
@@ -1053,7 +1053,7 @@ export default function TenantPropertyForm({
                           onClick={() => handleEditProperty(property)}
                           className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                         >
-                          Edit
+                          Ubah
                         </button>
                       ) : null}
                       <button
@@ -1061,7 +1061,7 @@ export default function TenantPropertyForm({
                         onClick={() => setSelectedPropertyId(property.id)}
                         className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800"
                       >
-                        Kelola Room
+                        Kelola Kamar
                       </button>
                       <button
                         type="button"
@@ -1177,7 +1177,7 @@ export default function TenantPropertyForm({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Kota (City ID)
+                  Kota (ID Kota)
                 </label>
                 <div className="relative">
                   <input
@@ -1316,7 +1316,7 @@ export default function TenantPropertyForm({
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <p className="text-xs text-slate-500">
-                      Pastikan gambar sesuai ketentuan sebelum diupload.
+                      Pastikan gambar sesuai ketentuan sebelum diunggah.
                     </p>
                     <button
                       type="button"
@@ -1324,13 +1324,13 @@ export default function TenantPropertyForm({
                       disabled={isUploadingGallery || stagedFiles.length === 0}
                       className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                     >
-                      {isUploadingGallery ? "Mengunggah..." : "Upload photo"}
+                      {isUploadingGallery ? "Mengunggah..." : "Unggah Foto"}
                     </button>
                   </div>
                 </div>
               ) : (
                 <p className="text-xs text-slate-400">
-                  Pilih gambar untuk staging, lalu klik Upload photo.
+                  Pilih gambar untuk staging, lalu klik Unggah Foto.
                 </p>
               )}
               {galleryUrls.length ? (
@@ -1423,10 +1423,10 @@ export default function TenantPropertyForm({
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                    Room Draft
+                    Draft Kamar
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-900">
-                    Atur room saat membuat properti
+                    Atur kamar saat membuat properti
                   </h2>
                 </div>
                 <button
@@ -1434,7 +1434,7 @@ export default function TenantPropertyForm({
                   onClick={handleAddRoomDraft}
                   className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  {roomDraftMode === "FULL" ? "Simpan Room" : "Tambah Room Draft"}
+                  {roomDraftMode === "FULL" ? "Simpan Kamar" : "Tambah Draft Kamar"}
                 </button>
               </div>
               <div className="space-y-2">
@@ -1461,9 +1461,9 @@ export default function TenantPropertyForm({
               <div className="grid gap-4 md:grid-cols-2">
                 {roomDraftMode === "PARTIAL" ? (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Room type / name
-                    </label>
+                      <label className="text-sm font-medium text-slate-700">
+                      Tipe / Nama Kamar
+                      </label>
                     <input
                       type="text"
                       value={roomName}
@@ -1489,7 +1489,7 @@ export default function TenantPropertyForm({
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-medium text-slate-700">
-                    Deskripsi Room
+                    Deskripsi Kamar
                   </label>
                   <textarea
                     rows={3}
@@ -1530,7 +1530,7 @@ export default function TenantPropertyForm({
                 roomDrafts.length ? (
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-slate-600">
-                      Room draft yang akan dibuat
+                      Draft kamar yang akan dibuat
                     </p>
                     {roomDrafts.map((draft, index) => (
                       <div
@@ -1565,7 +1565,7 @@ export default function TenantPropertyForm({
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500">
-                    Belum ada room draft ditambahkan.
+                    Belum ada draft kamar ditambahkan.
                   </p>
                 )
               ) : null}
@@ -1584,7 +1584,7 @@ export default function TenantPropertyForm({
               {isSaving
                 ? "Menyimpan..."
                 : editingPropertyId
-                  ? "Update Properti"
+                  ? "Perbarui Properti"
                   : "Simpan Properti"}
             </button>
           </div>
@@ -1596,10 +1596,10 @@ export default function TenantPropertyForm({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                Room Management
+                Kelola Kamar
               </p>
               <h2 className="mt-2 text-xl font-semibold text-slate-900">
-                Kelola room untuk properti terpilih
+                Kelola kamar untuk properti terpilih
               </h2>
             </div>
             {editingRoomId ? (
@@ -1608,15 +1608,15 @@ export default function TenantPropertyForm({
                 onClick={resetRoomForm}
                 className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700"
               >
-                Batalkan edit room
+                Batalkan edit kamar
               </button>
             ) : null}
           </div>
 
           {!selectedProperty ? (
-            <p className="mt-4 text-sm text-slate-500">
-              Pilih properti dari daftar di atas untuk mengelola room.
-            </p>
+              <p className="mt-4 text-sm text-slate-500">
+                Pilih properti dari daftar di atas untuk mengelola kamar.
+              </p>
           ) : (
             <>
               <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
@@ -1631,7 +1631,7 @@ export default function TenantPropertyForm({
               >
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">
-                    Room type / name
+                    Tipe / Nama Kamar
                   </label>
                   <input
                     type="text"
@@ -1657,7 +1657,7 @@ export default function TenantPropertyForm({
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-medium text-slate-700">
-                    Deskripsi Room
+                    Deskripsi Kamar
                   </label>
                   <textarea
                     rows={3}
@@ -1702,14 +1702,14 @@ export default function TenantPropertyForm({
                     {isSavingRoom
                       ? "Menyimpan..."
                       : editingRoomId
-                        ? "Update Room"
-                        : "Tambah Room"}
+                        ? "Perbarui Kamar"
+                        : "Tambah Kamar"}
                   </button>
                 </div>
               </form>
               <div className="mt-6">
                 <h3 className="text-sm font-semibold text-slate-700">
-                  Daftar room
+                  Daftar Kamar
                 </h3>
                 {selectedProperty.rooms.length ? (
                   <div className="mt-3 space-y-3">
@@ -1736,7 +1736,7 @@ export default function TenantPropertyForm({
                             onClick={() => handleEditRoom(room)}
                             className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                           >
-                            Edit
+                            Ubah
                           </button>
                           <button
                             type="button"
@@ -1751,7 +1751,7 @@ export default function TenantPropertyForm({
                   </div>
                 ) : (
                   <p className="mt-3 text-sm text-slate-500">
-                    Belum ada room untuk properti ini.
+                    Belum ada kamar untuk properti ini.
                   </p>
                 )}
               </div>

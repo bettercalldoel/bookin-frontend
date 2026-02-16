@@ -60,7 +60,7 @@ export default function GoogleSignInButton({
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Google login gagal.";
+        err instanceof Error ? err.message : "Gagal masuk dengan Google.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -89,7 +89,7 @@ export default function GoogleSignInButton({
             if (response.credential) {
               handleCredential(response.credential);
             } else {
-              setError("Login Google gagal.");
+              setError("Gagal masuk dengan Google.");
             }
           },
         });
@@ -120,7 +120,7 @@ export default function GoogleSignInButton({
         </p>
       ) : null}
       {isLoading ? (
-        <p className="mt-2 text-xs text-slate-500">Memproses login Google...</p>
+        <p className="mt-2 text-xs text-slate-500">Memproses masuk dengan Google...</p>
       ) : null}
     </div>
   );

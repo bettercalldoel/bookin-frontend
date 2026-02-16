@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
       setSuccess(result.message);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Gagal mengirim reset password.";
+        err instanceof Error ? err.message : "Gagal mengirim atur ulang password.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -55,10 +55,10 @@ export default function ForgotPasswordPage() {
             <div className="inline-block px-2 py-2.5 sm:px-4">
               <form className="flex flex-col gap-4 pb-4" onSubmit={handleSubmit}>
                 <h1 className="mb-2 text-2xl font-bold text-slate-900">
-                  Reset Password
+                  Atur Ulang Password
                 </h1>
                 <p className="text-sm text-slate-500">
-                  Masukkan email untuk menerima link reset password.
+                  Masukkan email untuk menerima link atur ulang password.
                 </p>
                 <div>
                   <div className="mb-2">
@@ -100,14 +100,14 @@ export default function ForgotPasswordPage() {
                     className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                   >
                     <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
-                      {isLoading ? "Mengirim..." : "Kirim link reset"}
+                      {isLoading ? "Mengirim..." : "Kirim Link Atur Ulang"}
                     </span>
                   </button>
                   <a
                     href="/login"
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                   >
-                    Kembali ke Login
+                    Kembali ke Masuk
                   </a>
                 </div>
               </form>

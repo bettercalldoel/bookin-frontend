@@ -37,7 +37,7 @@ function ConfirmResetForm() {
     setSuccess("");
 
     if (!token.trim()) {
-      setError("Token reset wajib diisi.");
+      setError("Token atur ulang wajib diisi.");
       return;
     }
     if (newPassword.length < 8) {
@@ -62,7 +62,7 @@ function ConfirmResetForm() {
       setTimeout(() => router.push("/login"), 1200);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Reset password gagal.";
+        err instanceof Error ? err.message : "Atur ulang password gagal.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -81,20 +81,20 @@ function ConfirmResetForm() {
             <div className="inline-block px-2 py-2.5 sm:px-4">
               <form className="flex flex-col gap-4 pb-4" onSubmit={handleSubmit}>
                 <h1 className="mb-2 text-2xl font-bold text-slate-900">
-                  Konfirmasi Reset Password
+                  Konfirmasi Atur Ulang Password
                 </h1>
                 {!hasTokenFromUrl ? (
                   <div>
                     <div className="mb-2">
                       <label className="text-sm font-medium text-slate-700">
-                        Token Reset
+                        Token Atur Ulang
                       </label>
                     </div>
                     <div className="flex w-full rounded-lg pt-1">
                       <div className="relative w-full">
                         <input
                           type="text"
-                          placeholder="Tempel token reset"
+                          placeholder="Tempel token atur ulang"
                           value={token}
                           onChange={(event) => setToken(event.target.value)}
                           className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
@@ -155,14 +155,14 @@ function ConfirmResetForm() {
                     className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                   >
                     <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
-                      {isLoading ? "Memproses..." : "Reset Password"}
+                      {isLoading ? "Memproses..." : "Atur Ulang Password"}
                     </span>
                   </button>
                   <a
                     href="/forgot-password"
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                   >
-                    Kirim ulang link reset
+                    Kirim ulang link atur ulang
                   </a>
                 </div>
               </form>

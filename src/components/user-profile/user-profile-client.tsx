@@ -168,7 +168,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
       setInfo(result.message);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Gagal mengirim reset password.";
+        err instanceof Error ? err.message : "Gagal mengirim atur ulang password.";
       setError(message);
     } finally {
       setIsSendingReset(false);
@@ -252,7 +252,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                User Profile
+                Profil Pengguna
               </p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-900">
                 Kelola profil dan keamanan akun
@@ -264,7 +264,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                 href="/"
                 className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
               >
-                Back Home
+                Kembali ke Beranda
               </a>
               {avatarUrl ? (
                 <img
@@ -364,7 +364,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                   disabled={isSavingEmail}
                   className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                 >
-                  {isSavingEmail ? "Menyimpan..." : "Update Email"}
+                  {isSavingEmail ? "Menyimpan..." : "Perbarui Email"}
                 </button>
                 {!isVerified ? (
                   <button
@@ -385,7 +385,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
               </h2>
               {!hasPassword ? (
                 <p className="mt-3 text-xs text-slate-500">
-                  Akun ini login via Google. Reset password hanya tersedia untuk
+                  Akun ini masuk melalui Google. Atur ulang password hanya tersedia untuk
                   akun yang dibuat dengan email dan password.
                 </p>
               ) : null}
@@ -396,7 +396,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                   disabled={isSendingReset || !hasPassword}
                   className="rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                 >
-                  {isSendingReset ? "Mengirim..." : "Kirim link reset via email"}
+                  {isSendingReset ? "Mengirim..." : "Kirim Link Atur Ulang ke Email"}
                 </button>
               </div>
             </section>

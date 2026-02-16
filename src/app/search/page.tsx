@@ -347,7 +347,7 @@ function SearchPageContent() {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
           <div className="max-w-2xl space-y-4">
             <p className="text-xs font-semibold uppercase tracking-[0.4em] text-teal-200">
-              BookIn Search
+              Pencarian BookIn
             </p>
             <h1 className="text-3xl font-semibold sm:text-4xl">
               Temukan properti dengan harga terbaik untuk perjalanan Anda.
@@ -578,12 +578,12 @@ function SearchPageContent() {
               <h3 className="mt-2 text-xl font-semibold text-slate-900">
                 {resultsLoading
                   ? "Memuat..."
-                  : `${resultsMeta.total} pilihan untuk kamu`}
+                  : `${resultsMeta.total} pilihan untuk Anda`}
               </h3>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Sort By
+                Urutkan
               </label>
               <select
                 value={form.sortBy}
@@ -598,8 +598,8 @@ function SearchPageContent() {
                 }}
                 className="h-9 rounded-full border border-slate-200 px-3 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600 focus:border-teal-500 focus:outline-none"
               >
-                <option value="name">Name</option>
-                <option value="price">Price</option>
+                <option value="name">Nama</option>
+                <option value="price">Harga</option>
               </select>
               <select
                 value={form.sortOrder}
@@ -614,8 +614,8 @@ function SearchPageContent() {
                 }}
                 className="h-9 rounded-full border border-slate-200 px-3 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600 focus:border-teal-500 focus:outline-none"
               >
-                <option value="asc">Asc</option>
-                <option value="desc">Desc</option>
+                <option value="asc">Menaik</option>
+                <option value="desc">Menurun</option>
               </select>
             </div>
           </div>
@@ -685,7 +685,7 @@ function SearchPageContent() {
                 disabled={resultsMeta.page <= 1 || resultsLoading}
                 className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-50"
               >
-                Prev
+                Sebelumnya
               </button>
               {Array.from({ length: resultsMeta.totalPages }, (_, index) => index + 1)
                 .slice(
@@ -715,7 +715,7 @@ function SearchPageContent() {
                 }
                 className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-50"
               >
-                Next
+                Selanjutnya
               </button>
             </div>
           )}

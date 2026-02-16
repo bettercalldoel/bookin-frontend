@@ -178,7 +178,7 @@ const formatPaymentMethodLabel = (method: PaymentMethod) => {
     case "MANUAL_TRANSFER":
       return "Transfer Manual";
     case "XENDIT":
-      return "Payment Gateway Xendit";
+      return "Gateway Pembayaran";
     default:
       return method;
   }
@@ -433,13 +433,13 @@ export default function MyTransactionClient() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                My Transaction
+                Riwayat Transaksi
               </p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-                Daftar transaksi booking kamu
+                Daftar transaksi pemesanan Anda
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Cari berdasarkan nomor order atau tanggal pembuatan transaksi.
+                Cari berdasarkan nomor pesanan atau tanggal pembuatan transaksi.
               </p>
             </div>
             <div className="flex gap-2">
@@ -447,7 +447,7 @@ export default function MyTransactionClient() {
                 href="/"
                 className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
               >
-                Back Home
+                Kembali ke Beranda
               </a>
               <button
                 type="button"
@@ -455,7 +455,7 @@ export default function MyTransactionClient() {
                 disabled={loading}
                 className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
               >
-                {loading ? "Refreshing..." : "Refresh"}
+                {loading ? "Memuat ulang..." : "Muat Ulang"}
               </button>
             </div>
           </div>
@@ -468,7 +468,7 @@ export default function MyTransactionClient() {
                 onChange={(event) =>
                   setFilters((prev) => ({ ...prev, orderNo: event.target.value }))
                 }
-                placeholder="Cari nomor order"
+                placeholder="Cari nomor pesanan"
                 className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
               />
               <input
@@ -500,7 +500,7 @@ export default function MyTransactionClient() {
                   onClick={handleResetSearch}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300"
                 >
-                  Reset
+                  Atur Ulang Pencarian
                 </button>
               </div>
             </div>
@@ -562,7 +562,7 @@ export default function MyTransactionClient() {
                         {trx.orderNo}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-slate-900">
-                        {trx.roomType?.name ?? "Room"}
+                        {trx.roomType?.name ?? "Kamar"}
                       </p>
                       <p className="text-xs text-slate-500">
                         Dipesan: {formatDateTime(trx.createdAt)}
@@ -636,7 +636,7 @@ export default function MyTransactionClient() {
                   {trx.review ? (
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Review Kamu
+                        Ulasan Kamu
                       </p>
                       <p className="mt-1 text-sm font-semibold text-amber-700">
                         {"★".repeat(Math.max(0, Math.min(5, trx.review.rating)))}
@@ -655,7 +655,7 @@ export default function MyTransactionClient() {
                           </p>
                           {trx.review.tenantRepliedAt ? (
                             <p className="mt-2 text-xs text-slate-500">
-                              Dibalas: {formatDateTime(trx.review.tenantRepliedAt)}
+                              Dibalas pada: {formatDateTime(trx.review.tenantRepliedAt)}
                             </p>
                           ) : null}
                         </div>
@@ -666,7 +666,7 @@ export default function MyTransactionClient() {
                   {trx.status === "SELESAI" && !trx.review ? (
                     <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Tulis Review
+                        Tulis Ulasan
                       </p>
                       <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
                         <select
@@ -692,7 +692,7 @@ export default function MyTransactionClient() {
                               comment: event.target.value,
                             })
                           }
-                          placeholder="Bagikan pengalaman menginap kamu..."
+                          placeholder="Bagikan pengalaman menginap Anda..."
                           className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
                         />
                       </div>
@@ -704,7 +704,7 @@ export default function MyTransactionClient() {
                       >
                         {reviewSubmittingId === trx.id
                           ? "Mengirim..."
-                          : "Kirim Review"}
+                          : "Kirim Ulasan"}
                       </button>
                     </div>
                   ) : null}

@@ -27,15 +27,11 @@ export default async function TenantPropertyPage() {
         <div className="rounded-[32px] border border-slate-200/80 bg-white/90 p-6 shadow-2xl shadow-slate-200/70 backdrop-blur sm:p-10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                Sewakan Properti
-              </p>
+            
               <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-                Form input properti untuk tenant
+                Daftarkan properti mu disini.
               </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Lengkapi data properti sesuai skema BookIn agar cepat terverifikasi.
-              </p>
+            
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
               Akun: {me.email}

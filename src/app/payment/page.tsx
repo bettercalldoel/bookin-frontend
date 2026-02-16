@@ -57,13 +57,13 @@ function PaymentContent() {
   const handleUploadProof = async () => {
     if (!isManualTransfer) {
       setUploadError(
-        "Booking ini menggunakan Xendit. Lanjutkan pembayaran melalui gateway.",
+        "Pesanan ini menggunakan gateway pembayaran. Lanjutkan pembayaran melalui gateway.",
       );
       return;
     }
 
     if (!bookingId) {
-      setUploadError("Booking ID tidak ditemukan. Ulangi dari halaman konfirmasi.");
+      setUploadError("ID pesanan tidak ditemukan. Ulangi dari halaman konfirmasi.");
       return;
     }
     if (!proofFile) {
@@ -73,7 +73,7 @@ function PaymentContent() {
 
     const token = getAuthToken();
     if (!token) {
-      setUploadError("Silakan login kembali untuk upload bukti transfer.");
+      setUploadError("Silakan login kembali untuk mengunggah bukti transfer.");
       return;
     }
 
@@ -102,15 +102,15 @@ function PaymentContent() {
       };
 
       if (!response.ok) {
-        throw new Error(payload.message || "Gagal upload bukti pembayaran.");
+        throw new Error(payload.message || "Gagal mengunggah bukti pembayaran.");
       }
 
-      setUploadSuccess(payload.message || "Bukti pembayaran berhasil diupload.");
+      setUploadSuccess(payload.message || "Bukti pembayaran berhasil diunggah.");
       setUploadedImageUrl(payload.imageUrl ?? null);
       setProofFile(null);
     } catch (err) {
       setUploadError(
-        err instanceof Error ? err.message : "Gagal upload bukti pembayaran.",
+        err instanceof Error ? err.message : "Gagal mengunggah bukti pembayaran.",
       );
     } finally {
       setUploading(false);
@@ -120,7 +120,7 @@ function PaymentContent() {
   const handleOpenXenditInvoice = () => {
     if (!xenditInvoiceUrl) {
       setUploadError(
-        "URL invoice Xendit tidak tersedia. Silakan ulangi booking dari halaman sebelumnya.",
+        "URL invoice gateway pembayaran tidak tersedia. Silakan ulangi pesanan dari halaman sebelumnya.",
       );
       return;
     }
@@ -137,7 +137,7 @@ function PaymentContent() {
             Pembayaran
           </p>
           <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-            Selesaikan pembayaran booking kamu
+            Selesaikan pembayaran pesanan Anda
           </h1>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
@@ -149,7 +149,7 @@ function PaymentContent() {
         </div>
         <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <div className="flex items-center justify-between">
-            <span>Order No</span>
+            <span>No. Pesanan</span>
             <span className="font-semibold text-slate-900">{orderNo}</span>
           </div>
           <div className="flex items-center justify-between">
@@ -161,7 +161,7 @@ function PaymentContent() {
           <div className="flex items-center justify-between">
             <span>Metode</span>
             <span className="font-semibold text-slate-900">
-              {isManualTransfer ? "Transfer Manual" : "Payment Gateway Xendit"}
+              {isManualTransfer ? "Transfer Manual" : "Gateway Pembayaran"}
             </span>
           </div>
           <div className="flex items-center justify-between">
@@ -177,14 +177,14 @@ function PaymentContent() {
             {isManualTransfer ? (
               <>
                 <li>Transfer sesuai total ke rekening yang ditentukan.</li>
-                <li>Upload bukti transfer di bawah ini.</li>
-                <li>Booking akan diproses setelah pembayaran terverifikasi tenant.</li>
+                <li>Unggah bukti transfer di bawah ini.</li>
+                <li>Pesanan akan diproses setelah pembayaran terverifikasi tenant.</li>
               </>
             ) : (
               <>
-                <li>Klik tombol bayar untuk lanjut ke halaman Xendit.</li>
-                <li>Pilih channel pembayaran yang tersedia di Xendit.</li>
-                <li>Status booking otomatis terupdate saat pembayaran sukses.</li>
+                <li>Klik tombol bayar untuk lanjut ke halaman gateway pembayaran.</li>
+                <li>Pilih channel pembayaran yang tersedia.</li>
+                <li>Status pesanan diperbarui otomatis saat pembayaran berhasil.</li>
               </>
             )}
           </ul>
@@ -194,7 +194,7 @@ function PaymentContent() {
             <>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Upload Bukti Transfer
+                  Unggah Bukti Transfer
                 </p>
                 <p className="text-xs text-slate-500">
                   Format: JPG/JPEG/PNG, maksimal 1MB.
@@ -203,8 +203,8 @@ function PaymentContent() {
 
               {!bookingId ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  Booking ID tidak tersedia. Ulangi proses dari halaman konfirmasi
-                  booking.
+                  ID pesanan tidak tersedia. Ulangi proses dari halaman konfirmasi
+                  pesanan.
                 </div>
               ) : (
                 <>
@@ -220,7 +220,7 @@ function PaymentContent() {
                     className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
                   />
                   {proofFile ? (
-                    <p className="text-xs text-slate-500">File: {proofFile.name}</p>
+                    <p className="text-xs text-slate-500">Berkas: {proofFile.name}</p>
                   ) : null}
                   <button
                     type="button"
@@ -230,7 +230,7 @@ function PaymentContent() {
                       canUpload ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300"
                     }`}
                   >
-                    {uploading ? "Mengunggah..." : "Upload Bukti Pembayaran"}
+                    {uploading ? "Mengunggah..." : "Unggah Bukti Pembayaran"}
                   </button>
                 </>
               )}
@@ -239,10 +239,10 @@ function PaymentContent() {
             <>
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Lanjutkan pembayaran gateway
+                  Lanjutkan Pembayaran
                 </p>
                 <p className="text-xs text-slate-500">
-                  Setelah pembayaran sukses, status booking akan diproses otomatis.
+                  Setelah pembayaran sukses, status pesanan akan diproses otomatis.
                 </p>
               </div>
               <button
@@ -255,7 +255,7 @@ function PaymentContent() {
                     : "bg-slate-300"
                 }`}
               >
-                {redirectingToGateway ? "Mengarahkan..." : "Bayar via Xendit"}
+                {redirectingToGateway ? "Mengarahkan..." : "Lanjutkan ke Gateway Pembayaran"}
               </button>
             </>
           )}
@@ -279,7 +279,7 @@ function PaymentContent() {
               rel="noreferrer"
               className="inline-flex rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             >
-              Lihat file yang diupload
+              Lihat berkas yang diunggah
             </a>
           ) : null}
         </div>

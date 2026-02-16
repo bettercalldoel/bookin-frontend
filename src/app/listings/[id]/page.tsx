@@ -250,12 +250,12 @@ export default function ListingDetailPage() {
   const bookingHelperText = useMemo(() => {
     if (!selectedRoomId) return "Pilih kamar terlebih dahulu.";
     if (!checkIn || !checkOut)
-      return "Pilih tanggal check-in dan check-out untuk lanjut booking.";
+      return "Pilih tanggal check-in dan check-out untuk melanjutkan pemesanan.";
     if (guestExceedsCapacity && selectedRoom)
       return `Jumlah tamu melebihi kapasitas kamar (${selectedRoom.maxGuests} tamu).`;
     if (!rangeAvailable)
       return "Rentang tanggal yang dipilih tidak tersedia penuh. Pilih tanggal lain.";
-    return "Data booking sudah valid. Klik tombol untuk lanjut konfirmasi.";
+    return "Data pemesanan sudah valid. Klik tombol untuk melanjutkan ke konfirmasi.";
   }, [checkIn, checkOut, guestExceedsCapacity, rangeAvailable, selectedRoom, selectedRoomId]);
 
   const handleDateClick = (item: AvailabilityItem) => {
@@ -348,7 +348,7 @@ export default function ListingDetailPage() {
               <div className="space-y-5 rounded-3xl border border-slate-200/80 bg-linear-to-br from-white via-slate-50 to-slate-100/70 p-6 shadow-2xl shadow-slate-200/70">
                 <div className="space-y-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                    Booking
+                    Pemesanan
                   </p>
                   <p className="text-lg font-semibold text-slate-900">
                     {selectedRoom
@@ -575,7 +575,7 @@ export default function ListingDetailPage() {
                       : "cursor-not-allowed border-slate-300 bg-slate-100 text-slate-500"
                   }`}
                 >
-                  {canBook ? "Booking sekarang" : "Lengkapi data booking"}
+                  {canBook ? "Pesan sekarang" : "Lengkapi data pemesanan"}
                 </button>
                 <p
                   className={`text-xs ${

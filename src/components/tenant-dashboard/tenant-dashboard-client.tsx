@@ -363,62 +363,62 @@ type CatalogCategory = {
 
 const navGroups: NavGroup[] = [
   {
-    title: "Main",
+    title: "Utama",
     items: [
       {
         key: "dashboard-overview",
-        label: "Dashboard Overview",
-        helper: "Ringkasan tenant",
+        label: "Ringkasan Dashboard",
+        helper: "Ringkasan mitra",
       },
     ],
   },
   {
-    title: "Tenant",
+    title: "Akun Tenant",
     items: [
       {
         key: "tenant-profile",
-        label: "Tenant Profile",
-        helper: "Profil khusus tenant",
+        label: "Profil Tenant",
+        helper: "Profil akun mitra",
       },
     ],
   },
   {
-    title: "Property & Room",
+    title: "Properti & Kamar",
     items: [
       {
         key: "property-management",
-        label: "Properties & Rooms",
-        helper: "Daftar properti, room, dan kalender",
+        label: "Properti & Kamar",
+        helper: "Daftar properti, kamar, dan kalender",
       },
     ],
   },
   {
-    title: "Transaction",
+    title: "Transaksi",
     items: [
       {
         key: "order-management",
-        label: "Order Management",
-        helper: "Status order & konfirmasi bayar",
+        label: "Kelola Pesanan",
+        helper: "Status pesanan & konfirmasi pembayaran",
       },
     ],
   },
   {
-    title: "Customer Relations",
+    title: "Relasi Pelanggan",
     items: [
       {
         key: "customer-relations",
-        label: "Reviews & Replies",
-        helper: "Balas review user",
+        label: "Ulasan & Balasan",
+        helper: "Balas ulasan pengguna",
       },
     ],
   },
   {
-    title: "Reports & Analysis",
+    title: "Laporan & Analisis",
     items: [
       {
         key: "sales-report",
-        label: "Report & Analysis",
-        helper: "Sales dan availability properti",
+        label: "Laporan & Analisis",
+        helper: "Laporan penjualan dan ketersediaan properti",
       },
     ],
   },
@@ -565,24 +565,24 @@ const formatPaymentProofStatus = (status: PaymentProofStatus) => {
 const getTransactionStatusMeta = (status: BookingStatus) => {
   if (status === "SELESAI") {
     return {
-      label: "Paid",
+      label: "Selesai",
       className: "bg-emerald-100 text-emerald-700",
     };
   }
   if (status === "DIPROSES") {
     return {
-      label: "Processed",
+      label: "Diproses",
       className: "bg-blue-100 text-blue-700",
     };
   }
   if (status === "DIBATALKAN") {
     return {
-      label: "Cancelled",
+      label: "Dibatalkan",
       className: "bg-slate-200 text-slate-700",
     };
   }
   return {
-    label: "Pending",
+    label: "Menunggu",
     className: "bg-amber-100 text-amber-700",
   };
 };
@@ -755,7 +755,7 @@ const fetchJson = async <T,>(
 
 const normalizeTenantActionError = (message: string) => {
   if (message.includes("tidak bisa ditutup karena sudah ada transaksi terbayar")) {
-    return `Aksi ditolak. ${message} Pilih tanggal lain atau biarkan tanggal tersebut tetap available.`;
+    return `Aksi ditolak. ${message} Pilih tanggal lain atau biarkan tanggal tersebut tetap tersedia.`;
   }
 
   if (message.includes("tidak boleh lebih kecil dari kamar terjual")) {
@@ -792,7 +792,7 @@ const propertyCardVisuals = [
   },
 ];
 
-const reportWeekdayLabels = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const reportWeekdayLabels = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
 
 export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const [active, setActive] = useState<NavKey>("dashboard-overview");
@@ -1200,7 +1200,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     const base = availabilityQuery.startDate
       ? new Date(`${availabilityQuery.startDate}T00:00:00`)
       : new Date();
-    return new Intl.DateTimeFormat("en-US", {
+    return new Intl.DateTimeFormat("id-ID", {
       month: "long",
       year: "numeric",
     }).format(base);
@@ -1519,9 +1519,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     setCategoryCreateError(null);
     setCategoryCreateFeedback(null);
     setTenantActionConfirm({
-      title: "Konfirmasi Update Kategori",
+      title: "Konfirmasi Perbarui Kategori",
       description: `Ubah nama kategori "${category.name}" menjadi "${nextName}"?`,
-      confirmLabel: "Update",
+      confirmLabel: "Perbarui",
       payload: {
         type: "update-category",
         id: category.id,
@@ -1547,7 +1547,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
   const loadAvailability = async () => {
     if (!selectedRoomId) {
-      setAvailabilityError("Pilih room terlebih dahulu.");
+      setAvailabilityError("Pilih kamar terlebih dahulu.");
       return;
     }
     if (!availabilityQuery.startDate || !availabilityQuery.endDate) {
@@ -1598,7 +1598,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       setRateRules(data);
     } catch (err) {
       setRateRulesError(
-        err instanceof Error ? err.message : "Gagal memuat rate rules.",
+        err instanceof Error ? err.message : "Gagal memuat aturan harga.",
       );
       setRateRules([]);
     } finally {
@@ -1631,7 +1631,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
   const handleConfirmRoomAction = async () => {
     if (!selectedRoomId || !roomActionConfirm) {
-      setRoomActionError("Aksi room belum siap dikonfirmasi.");
+      setRoomActionError("Aksi kamar belum siap dikonfirmasi.");
       return;
     }
 
@@ -1652,7 +1652,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       setRoomActionError(
         err instanceof Error
           ? normalizeTenantActionError(err.message)
-          : "Gagal menerapkan perubahan room.",
+          : "Gagal menerapkan perubahan kamar.",
       );
     } finally {
       setRoomActionLoading(false);
@@ -1666,7 +1666,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
   const handleRoomActionApply = async () => {
     if (!selectedRoomId) {
-      setRoomActionError("Pilih room terlebih dahulu.");
+      setRoomActionError("Pilih kamar terlebih dahulu.");
       return;
     }
     if (selectedCalendarDates.length === 0) {
@@ -1695,7 +1695,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
         if (parsedUnits !== null && selectedRoom && parsedUnits > selectedRoom.totalUnits) {
           setRoomActionError(
-            `Jumlah unit melebihi total room (${selectedRoom.totalUnits} unit).`,
+            `Jumlah unit melebihi total kamar (${selectedRoom.totalUnits} unit).`,
           );
           return;
         }
@@ -1712,7 +1712,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           );
           if (insufficientDate) {
             setRoomActionError(
-              `Jumlah room yang ditutup (${parsedUnits} unit) melebihi stok tanggal ${insufficientDate.date} (${insufficientDate.availableUnits} unit).`,
+              `Jumlah kamar yang ditutup (${parsedUnits} unit) melebihi stok tanggal ${insufficientDate.date} (${insufficientDate.availableUnits} unit).`,
             );
             return;
           }
@@ -1729,15 +1729,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               : "Tanggal terpilih berhasil dibuka.";
 
         const actionTitle =
-          roomActionType === "close" ? "Konfirmasi Tutup Room" : "Konfirmasi Buka Room";
+          roomActionType === "close" ? "Konfirmasi Tutup Kamar" : "Konfirmasi Buka Kamar";
         const actionDescription =
           roomActionType === "close"
             ? parsedUnits !== null
               ? `Kamu akan menutup ${parsedUnits} unit untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
-              : `Kamu akan menutup room untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
+              : `Kamu akan menutup kamar untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
             : parsedUnits !== null
-              ? `Kamu akan membuka room dengan ${parsedUnits} unit tersedia untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
-              : `Kamu akan membuka room untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`;
+              ? `Kamu akan membuka kamar dengan ${parsedUnits} unit tersedia untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
+              : `Kamu akan membuka kamar untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`;
 
         setRoomActionConfirm({
           title: actionTitle,
@@ -1771,7 +1771,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       setRoomActionError(
         err instanceof Error
           ? normalizeTenantActionError(err.message)
-          : "Gagal menerapkan perubahan room.",
+          : "Gagal menerapkan perubahan kamar.",
       );
     } finally {
       setRoomActionLoading(false);
@@ -1780,7 +1780,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
   const applyRoomSidebarChanges = () => {
     if (!selectedRoomId) {
-      setRoomActionError("Pilih room terlebih dahulu.");
+      setRoomActionError("Pilih kamar terlebih dahulu.");
       return;
     }
     if (selectedCalendarDates.length === 0) {
@@ -1798,10 +1798,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     setRoomActionError(null);
     setRoomActionSuccess(null);
     setTenantActionConfirm({
-      title: "Konfirmasi Perubahan Room",
+      title: "Konfirmasi Perubahan Kamar",
       description: hasRateAdjustment
-        ? `Kamu akan ${actionLabel} room di ${sortedDates.length} tanggal sekaligus menerapkan penyesuaian harga. Lanjutkan?`
-        : `Kamu akan ${actionLabel} room di ${sortedDates.length} tanggal terpilih. Lanjutkan?`,
+        ? `Kamu akan ${actionLabel} kamar di ${sortedDates.length} tanggal sekaligus menerapkan penyesuaian harga. Lanjutkan?`
+        : `Kamu akan ${actionLabel} kamar di ${sortedDates.length} tanggal terpilih. Lanjutkan?`,
       confirmLabel: "Terapkan",
       payload: {
         type: "apply-room-sidebar",
@@ -1818,8 +1818,8 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     const rule = rateRules.find((item) => item.id === id);
     setRateRulesError(null);
     setTenantActionConfirm({
-      title: "Konfirmasi Hapus Rate Rule",
-      description: `Hapus rate rule "${rule?.name ?? id}"?`,
+      title: "Konfirmasi Hapus Aturan Harga",
+      description: `Hapus aturan harga "${rule?.name ?? id}"?`,
       confirmLabel: "Hapus",
       payload: {
         type: "delete-rate-rule",
@@ -1966,7 +1966,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
       if (!reviewResult.ok || !pendingReviewResult.ok) {
         setOverviewNotice(
-          "Sebagian data overview tidak lengkap. Coba refresh setelah backend siap.",
+          "Sebagian data ringkasan belum lengkap. Coba muat ulang setelah backend siap.",
         );
       }
 
@@ -2329,7 +2329,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Gagal memuat sales report.";
+        err instanceof Error ? err.message : "Gagal memuat laporan penjualan.";
       const hasFallback = applySalesFallbackFromOverview();
       if (hasFallback) {
         setSalesError(`${message} Menampilkan data fallback dari payment proof.`);
@@ -2360,7 +2360,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       setTenantReviews(data.data ?? []);
     } catch (err) {
       setTenantReviewsError(
-        err instanceof Error ? err.message : "Gagal memuat review user.",
+        err instanceof Error ? err.message : "Gagal memuat ulasan pengguna.",
       );
       setTenantReviews([]);
     } finally {
@@ -2379,7 +2379,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       title: `Konfirmasi ${actionLabel} Pembayaran`,
       description:
         action === "approve"
-          ? "Setujui bukti pembayaran ini dan lanjutkan proses booking?"
+          ? "Setujui bukti pembayaran ini dan lanjutkan proses pemesanan?"
           : "Tolak bukti pembayaran ini sekarang?",
       confirmLabel: actionLabel,
       payload: {
@@ -2395,7 +2395,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     setPaymentActionFeedback(null);
     setTenantActionConfirm({
       title: "Konfirmasi Batalkan Pesanan",
-      description: `Batalkan pesanan ${orderNo}? Pesanan ini hanya bisa dibatalkan sebelum user upload bukti bayar.`,
+      description: `Batalkan pesanan ${orderNo}? Pesanan ini hanya bisa dibatalkan sebelum penyewa mengunggah bukti pembayaran.`,
       confirmLabel: "Batalkan",
       payload: {
         type: "cancel-order",
@@ -2408,7 +2408,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   const handleSubmitReply = (reviewId: string) => {
     const draft = reviewDrafts[reviewId]?.trim() ?? "";
     if (!draft) {
-      setTenantReviewsError("Balasan review tidak boleh kosong.");
+      setTenantReviewsError("Balasan ulasan tidak boleh kosong.");
       return;
     }
 
@@ -2416,7 +2416,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     setReviewReplyFeedback(null);
     setTenantActionConfirm({
       title: "Konfirmasi Kirim Balasan",
-      description: "Kirim balasan review ini sekarang?",
+      description: "Kirim balasan ulasan ini sekarang?",
       confirmLabel: "Kirim",
       payload: {
         type: "submit-review-reply",
@@ -2535,7 +2535,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             });
           }
 
-          setRoomActionSuccess("Perubahan room berhasil diterapkan.");
+          setRoomActionSuccess("Perubahan kamar berhasil diterapkan.");
           setSelectedCalendarDates([]);
           setRoomAdjustmentValue("");
           await Promise.all([loadAvailability(), loadRateRules()]);
@@ -2611,7 +2611,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             ...prev,
             [payload.reviewId]: "",
           }));
-          setReviewReplyFeedback(result.message ?? "Balasan review berhasil dikirim.");
+          setReviewReplyFeedback(result.message ?? "Balasan ulasan berhasil dikirim.");
           await loadTenantReviews();
           break;
         }
@@ -2635,10 +2635,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           setCategoryCreateError(errorMessage ?? "Gagal menghapus kategori.");
           break;
         case "apply-room-sidebar":
-          setRoomActionError(errorMessage ?? "Gagal menerapkan perubahan room.");
+          setRoomActionError(errorMessage ?? "Gagal menerapkan perubahan kamar.");
           break;
         case "delete-rate-rule":
-          setRateRulesError(errorMessage ?? "Gagal menghapus rule.");
+          setRateRulesError(errorMessage ?? "Gagal menghapus aturan harga.");
           break;
         case "payment-proof-review":
           setPaymentActionError(errorMessage ?? "Gagal memproses bukti pembayaran.");
@@ -2647,7 +2647,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           setPaymentActionError(errorMessage ?? "Gagal membatalkan pesanan.");
           break;
         case "submit-review-reply":
-          setTenantReviewsError(errorMessage ?? "Gagal mengirim balasan review.");
+          setTenantReviewsError(errorMessage ?? "Gagal mengirim balasan ulasan.");
           break;
         default:
           break;
@@ -2889,7 +2889,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             type="button"
             onClick={() => setIsSidebarOpen(false)}
             className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-cyan-50 hover:text-cyan-800 lg:hidden"
-            aria-label="Close menu"
+            aria-label="Tutup menu"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
               <path d="M6 6L18 18M6 18L18 6" strokeWidth="2" strokeLinecap="round" />
@@ -2901,7 +2901,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           type="button"
           onClick={() => setIsSidebarCollapsed((prev) => !prev)}
           className="absolute -right-3 top-7 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-xs text-slate-600 shadow-sm transition hover:bg-cyan-50 hover:text-cyan-800 lg:flex"
-          aria-label="Toggle sidebar"
+          aria-label="Buka atau tutup sidebar"
         >
           {isSidebarCollapsed ? ">" : "<"}
         </button>
@@ -2973,7 +2973,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <path d="M14 8L18 12L14 16M18 12H9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
-            <span className={isSidebarCollapsed ? "lg:hidden" : ""}>Exit</span>
+            <span className={isSidebarCollapsed ? "lg:hidden" : ""}>Keluar</span>
           </a>
         </div>
       </aside>
@@ -2989,7 +2989,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               type="button"
               onClick={() => setIsSidebarOpen(true)}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-cyan-50 hover:text-cyan-900 lg:hidden"
-              aria-label="Open menu"
+              aria-label="Buka menu"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                 <path d="M4 7H20M4 12H20M4 17H20" strokeWidth="2" strokeLinecap="round" />
@@ -3009,9 +3009,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 type="text"
                 value={headerSearch}
                 onChange={(event) => setHeaderSearch(event.target.value)}
-                placeholder="Search..."
+                placeholder="Cari menu, properti, atau transaksi"
                 className={`h-10 w-[220px] rounded-lg border border-slate-200 bg-white/90 pl-10 pr-4 text-sm text-slate-600 md:w-[380px] ${INPUT_THEME.focus}`}
-                aria-label="Search"
+                aria-label="Cari menu"
               />
             </div>
           </div>
@@ -3020,7 +3020,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <button
               type="button"
               className="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-cyan-50 hover:text-cyan-900"
-              aria-label="Notifications"
+              aria-label="Notifikasi"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                 <path
@@ -3036,7 +3036,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-slate-900">{me.name}</p>
               <p className="text-xs text-slate-500">
-                {me.tenantProfile?.companyName ?? "Premium Tenant"}
+                {me.tenantProfile?.companyName ?? "Mitra BookIn"}
               </p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-cyan-700 to-teal-700 text-xs font-bold text-white sm:h-10 sm:w-10">
@@ -3052,9 +3052,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-display text-4xl text-slate-900">Dashboard Overview</h2>
+                  <h2 className="font-display text-4xl text-slate-900">Ringkasan Dashboard</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Welcome back, here&apos;s what&apos;s happening with your properties today.
+                    Ringkasan performa properti dan transaksi terbaru hari ini.
                   </p>
                 </div>
                 <button
@@ -3063,7 +3063,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   disabled={overviewLoading}
                   className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-60"
                 >
-                  {overviewLoading ? "Refreshing..." : "Refresh Data"}
+                  {overviewLoading ? "Memuat ulang..." : "Muat Ulang Data"}
                 </button>
               </div>
 
@@ -3081,7 +3081,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {[
                   {
-                    label: "Total Revenue",
+                    label: "Total Pendapatan",
                     value: formatCurrency(overviewSummary.totalRevenue),
                     change: overviewRevenueChangeLabel,
                     helper: "vs 7 hari terakhir",
@@ -3090,31 +3090,31 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     iconClass: "bg-slate-200 text-slate-800",
                   },
                   {
-                    label: "Active Tenants",
+                    label: "Penyewa Aktif",
                     value: overviewSummary.activeTenants.toString(),
                     change: `+${overviewSummary.activeOrders}`,
-                    helper: "booking aktif",
+                    helper: "pemesanan aktif",
                     positive: true,
                     iconLabel: "AT",
                     iconClass: "bg-emerald-100 text-emerald-600",
                   },
                   {
-                    label: "Occupancy Rate",
+                    label: "Tingkat Okupansi",
                     value: `${overviewSummary.occupancyRate}%`,
                     change:
                       overviewSummary.pendingOrders > 0
                         ? `-${overviewSummary.pendingOrders}`
                         : "+0",
-                    helper: "vs last month",
+                    helper: "dibanding bulan lalu",
                     positive: overviewSummary.pendingOrders === 0,
                     iconLabel: "OC",
                     iconClass: "bg-blue-100 text-blue-600",
                   },
                   {
-                    label: "Pending Reviews",
+                    label: "Ulasan Belum Dibalas",
                     value: overviewSummary.pendingReviews.toString(),
                     change: `+${overviewSummary.pendingReviews}`,
-                    helper: "vs last month",
+                    helper: "dibanding bulan lalu",
                     positive: true,
                     iconLabel: "RV",
                     iconClass: "bg-orange-100 text-orange-600",
@@ -3145,7 +3145,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "bg-rose-100 text-rose-700"
                         }`}
                       >
-                        {item.positive ? "up " : "down "}
+                        {item.positive ? "naik " : "turun "}
                         {item.change}
                       </span>
                       <span className="text-slate-500">{item.helper}</span>
@@ -3156,13 +3156,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
               <div className="grid gap-4 xl:grid-cols-3">
                 <div className="surface-panel rounded-xl p-5 xl:col-span-2">
-                  <h3 className="font-display text-3xl text-slate-900">Revenue Analytics</h3>
+                  <h3 className="font-display text-3xl text-slate-900">Analisis Pendapatan</h3>
                   <div className="mt-4 rounded-lg bg-slate-50 p-4">
                     <svg
                       viewBox={`0 0 ${overviewChart.width} ${overviewChart.height}`}
                       className="h-64 w-full"
                       role="img"
-                      aria-label="Revenue analytics chart"
+                      aria-label="Grafik analisis pendapatan"
                     >
                       <defs>
                         <linearGradient id="overviewRevenueFill" x1="0" y1="0" x2="0" y2="1">
@@ -3237,11 +3237,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 </div>
 
                 <div className="surface-panel rounded-xl p-5">
-                  <h3 className="font-display text-3xl text-slate-900">Recent Activity</h3>
+                  <h3 className="font-display text-3xl text-slate-900">Aktivitas Terbaru</h3>
                   <div className="mt-5 space-y-4">
                     {overviewRecentActivity.length === 0 ? (
                       <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
-                        Belum ada aktivitas booking.
+                        Belum ada aktivitas pemesanan.
                       </div>
                     ) : (
                       overviewRecentActivity.map((activity) => (
@@ -3254,7 +3254,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           </div>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-slate-900">
-                              New booking from {activity.user.fullName ?? activity.user.email}
+                              Booking baru dari {activity.user.fullName ?? activity.user.email}
                             </p>
                             <p className="mt-0.5 truncate text-xs text-slate-500">
                               {formatDateTime(activity.submittedAt)} •{" "}
@@ -3270,14 +3270,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     onClick={() => setActive("order-management")}
                     className="mt-4 text-sm font-semibold text-cyan-800 transition hover:text-cyan-900"
                   >
-                    View All Activity
+                    Lihat Semua Aktivitas
                   </button>
                 </div>
               </div>
 
               <div className="surface-panel rounded-xl p-5">
                 <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">Property Breakdown</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">Rincian Properti</h3>
                   <p className="mt-1 text-xs text-slate-500">
                     Hierarki detail properti dari transaksi tenant.
                   </p>
@@ -3288,12 +3288,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       <tr>
                         <th className="px-4 py-3">Properti</th>
-                        <th className="px-4 py-3 text-right">Order</th>
-                        <th className="px-4 py-3 text-right">Pending</th>
+                        <th className="px-4 py-3 text-right">Pesanan</th>
+                        <th className="px-4 py-3 text-right">Menunggu</th>
                         <th className="px-4 py-3 text-right">Diproses</th>
                         <th className="px-4 py-3 text-right">Selesai</th>
                         <th className="px-4 py-3 text-right">Dibatalkan</th>
-                        <th className="px-4 py-3 text-right">Revenue</th>
+                        <th className="px-4 py-3 text-right">Pendapatan</th>
                         <th className="px-4 py-3">Aktivitas Terakhir</th>
                       </tr>
                     </thead>
@@ -3348,7 +3348,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                  Tenant Profile
+                  Profil Tenant
                 </p>
                 <h2 className="text-2xl font-semibold text-slate-900">
                   Profil akun tenant
@@ -3357,7 +3357,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    Profile Info
+                    Informasi Profil
                   </p>
                   <div className="mt-3 space-y-3 text-sm">
                     <div>
@@ -3369,16 +3369,16 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       <p className="font-semibold text-slate-900">{me.email}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500">Company</p>
+                      <p className="text-xs text-slate-500">Perusahaan</p>
                       <p className="font-semibold text-slate-900">
-                        {me.tenantProfile?.companyName ?? "Tenant BookIn"}
+                        {me.tenantProfile?.companyName ?? "Mitra BookIn"}
                       </p>
                     </div>
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    Account Status
+                    Status Akun
                   </p>
                   <div className="mt-3 space-y-3 text-sm text-slate-600">
                     <p>
@@ -3387,7 +3387,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         {me.emailVerifiedAt ? "Terverifikasi" : "Belum verifikasi"}
                       </span>
                     </p>
-                    <p>Role: Tenant</p>
+                    <p>Peran: Tenant</p>
                     <p className="text-xs text-slate-500">
                       Untuk update data bisnis dan rekening payout, gunakan form profil
                       tenant saat endpoint backend tersedia.
@@ -3397,7 +3397,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     href="/profile"
                     className="mt-4 inline-flex rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                   >
-                    Buka Profile Umum
+                    Buka Profil Umum
                   </a>
                 </div>
               </div>
@@ -3409,7 +3409,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="font-display text-3xl text-slate-900">
-                    Sales Report
+                    Laporan Penjualan
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Laporan penjualan tenant berdasarkan transaksi, properti, dan user.
@@ -3426,7 +3426,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       <path d="M20 12a8 8 0 0 1-14.5 4.5M4 12A8 8 0 0 1 18.5 7.5" strokeWidth="1.8" strokeLinecap="round" />
                       <path d="M4 16v-3.5h3.5M20 8v3.5h-3.5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    {salesLoading ? "Memuat..." : "Refresh"}
+                    {salesLoading ? "Memuat..." : "Muat Ulang"}
                   </button>
                 </div>
               </div>
@@ -3438,14 +3438,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     onClick={() => setReportTab("sales")}
                     className="border-b-2 border-cyan-800 pb-3 text-sm font-medium text-cyan-900"
                   >
-                    Sales Report
+                    Laporan Penjualan
                   </button>
                   <button
                     type="button"
                     onClick={() => setReportTab("property")}
                     className="border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 transition hover:text-cyan-800"
                   >
-                    Property Availability
+                    Ketersediaan Properti
                   </button>
                 </div>
               </div>
@@ -3454,7 +3454,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto_auto]">
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Report View
+                      Tampilan Laporan
                     </span>
                     <select
                       value={salesView}
@@ -3465,15 +3465,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       }
                       className={`h-10 min-w-[180px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                     >
-                      <option value="transaction">Transaction</option>
-                      <option value="property">Property</option>
-                      <option value="user">User</option>
+                      <option value="transaction">Transaksi</option>
+                      <option value="property">Properti</option>
+                      <option value="user">Pengguna</option>
                     </select>
                   </label>
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Sort By
+                      Urutkan Berdasarkan
                     </span>
                     <select
                       value={sortBy}
@@ -3482,14 +3482,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       }
                       className={`h-10 min-w-[150px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                     >
-                      <option value="date">Date</option>
-                      <option value="total">Total Sales</option>
+                      <option value="date">Tanggal</option>
+                      <option value="total">Total Penjualan</option>
                     </select>
                   </label>
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Sort Order
+                      Urutan
                     </span>
                     <select
                       value={salesSortOrder}
@@ -3498,14 +3498,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       }
                       className={`h-10 min-w-[130px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                     >
-                      <option value="desc">Desc</option>
-                      <option value="asc">Asc</option>
+                      <option value="desc">Menurun</option>
+                      <option value="asc">Menaik</option>
                     </select>
                   </label>
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      From
+                      Dari
                     </span>
                     <input
                       type="date"
@@ -3519,7 +3519,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      To
+                      Sampai
                     </span>
                     <input
                       type="date"
@@ -3549,10 +3549,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       onChange={(event) => setTransactionSearch(event.target.value)}
                       placeholder={
                         salesView === "transaction"
-                          ? "Cari transaksi / properti / user..."
+                          ? "Cari transaksi / properti / pengguna..."
                           : salesView === "property"
                             ? "Cari nama properti..."
-                            : "Cari nama user..."
+                            : "Cari nama pengguna..."
                       }
                       className={`h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                     />
@@ -3568,7 +3568,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     }}
                     className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900"
                   >
-                    Reset Filter
+                    Atur Ulang Pencarian
                   </button>
                 </div>
 
@@ -3583,26 +3583,26 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               <div className="grid gap-4 lg:grid-cols-3">
                 {[
                   {
-                    label: "Total Sales",
+                    label: "Total Penjualan",
                     value: formatCurrency(salesSummary.totalSales),
                     change: `${salesSummary.totalTransactions} transaksi`,
                     positive: true,
                   },
                   {
-                    label: "Total Transactions",
+                    label: "Total Transaksi",
                     value: `${salesSummary.totalTransactions}`,
                     change:
                       salesView === "property"
                         ? `${salesMeta.total} properti`
                         : salesView === "user"
-                          ? `${salesMeta.total} user`
+                          ? `${salesMeta.total} pengguna`
                           : `${salesMeta.total} transaksi`,
                     positive: true,
                   },
                   {
-                    label: "Avg. Transaction Value",
+                    label: "Rata-rata Nilai Transaksi",
                     value: formatCurrency(salesSummary.avgPerTransaction),
-                    change: "Diluar transaksi dibatalkan",
+                    change: "Tidak termasuk transaksi dibatalkan",
                     positive: true,
                   },
                 ].map((item) => (
@@ -3626,7 +3626,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               </div>
 
               <div className="surface-panel rounded-xl p-6">
-                <h3 className="text-lg font-bold text-slate-900">Sales Trend</h3>
+                <h3 className="text-lg font-bold text-slate-900">Tren Penjualan</h3>
                 <div className="relative mt-5">
                   <div className="pointer-events-none absolute left-0 right-0 top-0 z-0 grid h-64 grid-rows-4">
                     {Array.from({ length: 4 }).map((_, index) => (
@@ -3642,7 +3642,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             style={{
                               height: `${Math.max(6, (item.sales / salesTrendMax) * 100)}%`,
                             }}
-                            title={`Sales ${formatCurrency(item.sales)}`}
+                            title={`Penjualan ${formatCurrency(item.sales)}`}
                           />
                           <div
                             className="w-6 rounded-t-md bg-emerald-500 sm:w-8"
@@ -3652,7 +3652,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                 (item.bookings / bookingsTrendMax) * 100,
                               )}%`,
                             }}
-                            title={`Bookings ${item.bookings}`}
+                            title={`Pesanan ${item.bookings}`}
                           />
                         </div>
                         <p className="text-sm font-semibold text-slate-500">{item.month}</p>
@@ -3663,11 +3663,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <div className="mt-3 flex items-center justify-center gap-4 text-sm font-medium">
                   <div className="flex items-center gap-2 text-emerald-600">
                     <span className="h-3 w-3 rounded-sm bg-emerald-500" />
-                    Bookings
+                    Pesanan
                   </div>
                   <div className="flex items-center gap-2 text-slate-800">
                     <span className="h-3 w-3 rounded-sm bg-slate-700" />
-                    Sales (IDR)
+                    Penjualan (IDR)
                   </div>
                 </div>
               </div>
@@ -3675,10 +3675,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               <div className="surface-panel rounded-xl p-5">
                 <h3 className="text-lg font-semibold text-slate-900">
                   {salesView === "transaction"
-                    ? "Transaction Report"
+                    ? "Laporan Transaksi"
                     : salesView === "property"
-                      ? "Property Report"
-                      : "User Report"}
+                      ? "Laporan Properti"
+                      : "Laporan Pengguna"}
                 </h3>
 
                 <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
@@ -3686,11 +3686,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     <table className="w-full min-w-[860px] text-left text-sm">
                       <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.18em] text-slate-500">
                         <tr>
-                          <th className="px-4 py-3">Transaction</th>
-                          <th className="px-4 py-3">Date</th>
-                          <th className="px-4 py-3">Property</th>
-                          <th className="px-4 py-3">User</th>
-                          <th className="px-4 py-3 text-right">Total Sales</th>
+                          <th className="px-4 py-3">Transaksi</th>
+                          <th className="px-4 py-3">Tanggal</th>
+                          <th className="px-4 py-3">Properti</th>
+                          <th className="px-4 py-3">Pengguna</th>
+                          <th className="px-4 py-3 text-right">Total Penjualan</th>
                           <th className="px-4 py-3">Status</th>
                         </tr>
                       </thead>
@@ -3732,11 +3732,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     <table className="w-full min-w-[780px] text-left text-sm">
                       <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.18em] text-slate-500">
                         <tr>
-                          <th className="px-4 py-3">Property</th>
-                          <th className="px-4 py-3 text-right">Transaction</th>
-                          <th className="px-4 py-3 text-right">User</th>
-                          <th className="px-4 py-3 text-right">Total Sales</th>
-                          <th className="px-4 py-3">Last Transaction</th>
+                          <th className="px-4 py-3">Properti</th>
+                          <th className="px-4 py-3 text-right">Transaksi</th>
+                          <th className="px-4 py-3 text-right">Pengguna</th>
+                          <th className="px-4 py-3 text-right">Total Penjualan</th>
+                          <th className="px-4 py-3">Transaksi Terakhir</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -3778,11 +3778,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     <table className="w-full min-w-[780px] text-left text-sm">
                       <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.18em] text-slate-500">
                         <tr>
-                          <th className="px-4 py-3">User</th>
-                          <th className="px-4 py-3 text-right">Transaction</th>
-                          <th className="px-4 py-3 text-right">Property</th>
-                          <th className="px-4 py-3 text-right">Total Sales</th>
-                          <th className="px-4 py-3">Last Transaction</th>
+                          <th className="px-4 py-3">Pengguna</th>
+                          <th className="px-4 py-3 text-right">Transaksi</th>
+                          <th className="px-4 py-3 text-right">Properti</th>
+                          <th className="px-4 py-3 text-right">Total Penjualan</th>
+                          <th className="px-4 py-3">Transaksi Terakhir</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -3823,12 +3823,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs text-slate-500">
-                    Menampilkan page {salesMeta.page} dari {salesMeta.totalPages} (
+                    Menampilkan halaman {salesMeta.page} dari {salesMeta.totalPages} (
                     {salesMeta.total} data)
                   </p>
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-medium text-slate-500">
-                      Rows
+                      Baris
                       <select
                         value={salesLimit}
                         onChange={(event) => {
@@ -3849,7 +3849,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       disabled={!salesMeta.hasPrev || salesLoading}
                       className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
                     >
-                      Prev
+                      Sebelumnya
                     </button>
                     <button
                       type="button"
@@ -3861,7 +3861,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       disabled={!salesMeta.hasNext || salesLoading}
                       className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
                     >
-                      Next
+                      Selanjutnya
                     </button>
                   </div>
                 </div>
@@ -3874,7 +3874,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="font-display text-3xl text-slate-900">
-                    Property Report
+                    Laporan Properti
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Monitor ketersediaan properti dan kamar dalam bentuk kalender.
@@ -3891,7 +3891,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       <path d="M20 12a8 8 0 0 1-14.5 4.5M4 12A8 8 0 0 1 18.5 7.5" strokeWidth="1.8" strokeLinecap="round" />
                       <path d="M4 16v-3.5h3.5M20 8v3.5h-3.5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    {availabilityLoading ? "Memuat..." : "Refresh Kalender"}
+                    {availabilityLoading ? "Memuat..." : "Muat Ulang Kalender"}
                   </button>
                 </div>
               </div>
@@ -3903,14 +3903,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     onClick={() => setReportTab("sales")}
                     className="border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 transition hover:text-cyan-800"
                   >
-                    Sales Report
+                    Laporan Penjualan
                   </button>
                   <button
                     type="button"
                     onClick={() => setReportTab("property")}
                     className="border-b-2 border-cyan-800 pb-3 text-sm font-medium text-cyan-900"
                   >
-                    Property Availability
+                    Ketersediaan Properti
                   </button>
                 </div>
               </div>
@@ -3919,7 +3919,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Property
+                      Properti
                     </span>
                     <select
                       value={selectedPropertyId}
@@ -3938,7 +3938,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Room
+                      Kamar
                     </span>
                     <select
                       value={selectedRoomId}
@@ -3946,7 +3946,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                       disabled={!selectedProperty}
                     >
-                      <option value="">Pilih room</option>
+                      <option value="">Pilih kamar</option>
                       {availableRooms.map((room) => (
                         <option key={room.id} value={room.id}>
                           {room.name}
@@ -3957,7 +3957,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Start Date
+                      Tanggal Mulai
                     </span>
                     <input
                       type="date"
@@ -3974,7 +3974,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      End Date
+                      Tanggal Akhir
                     </span>
                     <input
                       type="date"
@@ -4022,14 +4022,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       {selectedProperty?.name ?? "Belum pilih properti"}
                     </span>
                     {" · "}
-                    <span>{selectedRoom?.name ?? "Belum pilih room"}</span>
+                    <span>{selectedRoom?.name ?? "Belum memilih kamar"}</span>
                   </div>
                   <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1">
                     <button
                       type="button"
                       onClick={() => shiftAvailabilityMonth(-1)}
                       className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
-                      aria-label="Previous month"
+                      aria-label="Bulan sebelumnya"
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                         <path d="M15 6L9 12L15 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -4042,7 +4042,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       type="button"
                       onClick={() => shiftAvailabilityMonth(1)}
                       className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
-                      aria-label="Next month"
+                      aria-label="Bulan berikutnya"
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                         <path d="M9 6L15 12L9 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -4060,12 +4060,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                   <p className="text-xs text-slate-600">
-                    Property page {propertyReportMeta.page} dari{" "}
+                    Halaman properti {propertyReportMeta.page} dari{" "}
                     {propertyReportMeta.totalPages} ({propertyReportMeta.total} properti)
                   </p>
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-medium text-slate-500">
-                      Rows
+                      Baris
                       <select
                         value={propertyReportLimit}
                         onChange={(event) =>
@@ -4086,7 +4086,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       disabled={!propertyReportMeta.hasPrev || propertiesLoading}
                       className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
                     >
-                      Prev
+                      Sebelumnya
                     </button>
                     <button
                       type="button"
@@ -4098,46 +4098,46 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       disabled={!propertyReportMeta.hasNext || propertiesLoading}
                       className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
                     >
-                      Next
+                      Selanjutnya
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="surface-panel rounded-xl p-6">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-lg font-bold text-slate-900">Occupancy Calendar</h3>
+                <div className="surface-panel rounded-xl p-6">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-lg font-bold text-slate-900">Kalender Ketersediaan</h3>
                   <div className="flex items-center gap-4 text-sm text-slate-600">
                     <span className="inline-flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-emerald-500" />
-                      Available
+                      Tersedia
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-rose-500" />
-                      Booked
+                      Terpesan
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-slate-400" />
-                      Maintenance
+                      Perawatan
                     </span>
                   </div>
                 </div>
 
                 <div className="mb-4 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                    Available:{" "}
+                    Tersedia:{" "}
                     <span className="font-semibold">
                       {availabilityStatusSummary.available} hari
                     </span>
                   </div>
                   <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                    Booked:{" "}
+                    Terpesan:{" "}
                     <span className="font-semibold">
                       {availabilityStatusSummary.booked} hari
                     </span>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700">
-                    Maintenance:{" "}
+                    Perawatan:{" "}
                     <span className="font-semibold">
                       {availabilityStatusSummary.maintenance} hari
                     </span>
@@ -4182,7 +4182,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                           : "bg-slate-200 text-slate-600"
                                     }`}
                                   >
-                                    {cell.status}
+                                    {cell.status === "Available"
+                                      ? "Tersedia"
+                                      : cell.status === "Booked"
+                                        ? "Terpesan"
+                                        : "Perawatan"}
                                   </span>
                                 </div>
                               ) : null}
@@ -4200,9 +4204,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           {active === "order-management" ? (
             <div className="space-y-6">
               <div>
-                <h2 className="font-display text-3xl text-slate-900">Transactions</h2>
+                <h2 className="font-display text-3xl text-slate-900">Transaksi</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Manage orders and confirm payments.
+                  Kelola pesanan dan konfirmasi pembayaran.
                 </p>
               </div>
 
@@ -4210,11 +4214,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <div className="border-b border-slate-200 bg-slate-50/60 p-4">
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {[
-                      { value: "ALL" as const, label: "All" },
-                      { value: "MENUNGGU_PEMBAYARAN" as const, label: "Pending" },
-                      { value: "SELESAI" as const, label: "Paid" },
-                      { value: "DIPROSES" as const, label: "Processed" },
-                      { value: "DIBATALKAN" as const, label: "Cancelled" },
+                      { value: "ALL" as const, label: "Semua" },
+                      { value: "MENUNGGU_PEMBAYARAN" as const, label: "Menunggu" },
+                      { value: "SELESAI" as const, label: "Selesai" },
+                      { value: "DIPROSES" as const, label: "Diproses" },
+                      { value: "DIBATALKAN" as const, label: "Dibatalkan" },
                     ].map((tab) => (
                       <button
                         key={tab.value}
@@ -4246,7 +4250,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         type="text"
                         value={transactionSearch}
                         onChange={(event) => setTransactionSearch(event.target.value)}
-                        placeholder="Search..."
+                        placeholder="Cari nomor pesanan atau nama tamu"
                         className={`h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                       />
                     </div>
@@ -4262,12 +4266,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         )
                       }
                       className={`h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
-                      aria-label="Sort by"
+                      aria-label="Urutkan berdasarkan"
                     >
-                      <option value="submittedAt">Sort: Submitted</option>
-                      <option value="checkIn">Sort: Check-In</option>
-                      <option value="total">Sort: Amount</option>
-                      <option value="orderNo">Sort: Order ID</option>
+                      <option value="submittedAt">Urutkan: Waktu Pengajuan</option>
+                      <option value="checkIn">Urutkan: Check-in</option>
+                      <option value="total">Urutkan: Total</option>
+                      <option value="orderNo">Urutkan: No. Pesanan</option>
                     </select>
                     <select
                       value={transactionSortOrder}
@@ -4275,10 +4279,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         setTransactionSortOrder(event.target.value as "asc" | "desc")
                       }
                       className={`h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
-                      aria-label="Sort order"
+                      aria-label="Urutan"
                     >
-                      <option value="desc">Newest</option>
-                      <option value="asc">Oldest</option>
+                      <option value="desc">Terbaru</option>
+                      <option value="asc">Terlama</option>
                     </select>
                   </div>
 
@@ -4297,13 +4301,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   <table className="w-full min-w-[980px] text-left text-sm">
                     <thead className="border-b border-slate-200 bg-slate-50 text-sm font-semibold text-slate-500">
                       <tr>
-                        <th className="px-6 py-4">Order ID</th>
-                        <th className="px-6 py-4">Guest</th>
-                        <th className="px-6 py-4">Property</th>
-                        <th className="px-6 py-4">Check-In</th>
-                        <th className="px-6 py-4">Amount</th>
+                        <th className="px-6 py-4">No. Pesanan</th>
+                        <th className="px-6 py-4">Tamu</th>
+                        <th className="px-6 py-4">Properti</th>
+                        <th className="px-6 py-4">Check-in</th>
+                        <th className="px-6 py-4">Total</th>
                         <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
+                        <th className="px-6 py-4 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4363,7 +4367,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                         }
                                         disabled={paymentActionLoadingId === order.paymentProofId}
                                         className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-600 transition hover:bg-emerald-50 disabled:opacity-60"
-                                        aria-label="Approve payment"
+                                        aria-label="Setujui pembayaran"
                                       >
                                         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                                           <path d="M5 12L10 17L19 8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -4379,7 +4383,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                         }
                                         disabled={paymentActionLoadingId === order.paymentProofId}
                                         className="flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
-                                        aria-label="Reject payment"
+                                        aria-label="Tolak pembayaran"
                                       >
                                         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                                           <path d="M6 6L18 18M6 18L18 6" strokeWidth="2" strokeLinecap="round" />
@@ -4396,7 +4400,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                       disabled={paymentActionLoadingId === order.id}
                                       className="flex h-9 items-center justify-center rounded-lg border border-amber-200 px-3 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-60"
                                     >
-                                      Cancel
+                                      Batalkan
                                     </button>
                                   ) : null}
                                   {hasProofLink ? (
@@ -4405,7 +4409,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                       target="_blank"
                                       rel="noreferrer"
                                       className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
-                                      aria-label="View proof"
+                                      aria-label="Lihat bukti"
                                     >
                                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                                         <path d="M2 12C4.8 7.8 8 5.7 12 5.7C16 5.7 19.2 7.8 22 12C19.2 16.2 16 18.3 12 18.3C8 18.3 4.8 16.2 2 12Z" strokeWidth="1.8" />
@@ -4415,7 +4419,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                   ) : (
                                     <span
                                       className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-300"
-                                      aria-label="No proof link"
+                                      aria-label="Bukti belum tersedia"
                                     >
                                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                                         <path d="M2 12C4.8 7.8 8 5.7 12 5.7C16 5.7 19.2 7.8 22 12C19.2 16.2 16 18.3 12 18.3C8 18.3 4.8 16.2 2 12Z" strokeWidth="1.8" />
@@ -4468,17 +4472,17 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           </div>
                           <div className="grid grid-cols-2 gap-2 text-sm text-slate-500">
                             <div>
-                              <p className="text-xs text-slate-400">Guest</p>
+                              <p className="text-xs text-slate-400">Tamu</p>
                               <p>{order.user}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-slate-400">Check-In</p>
+                              <p className="text-xs text-slate-400">Check-in</p>
                               <p>{formatDateTime(order.checkIn)}</p>
                             </div>
                           </div>
                           <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                             <div>
-                              <p className="text-xs text-slate-400">Amount</p>
+                              <p className="text-xs text-slate-400">Total</p>
                               <p className="font-semibold text-slate-900">
                                 {formatCurrency(order.total)}
                               </p>
@@ -4493,7 +4497,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                     }
                                     disabled={paymentActionLoadingId === order.paymentProofId}
                                     className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-600"
-                                    aria-label="Approve payment"
+                                    aria-label="Setujui pembayaran"
                                   >
                                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                                       <path d="M5 12L10 17L19 8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -4506,7 +4510,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                     }
                                     disabled={paymentActionLoadingId === order.paymentProofId}
                                     className="flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 text-rose-600"
-                                    aria-label="Reject payment"
+                                    aria-label="Tolak pembayaran"
                                   >
                                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                                       <path d="M6 6L18 18M6 18L18 6" strokeWidth="2" strokeLinecap="round" />
@@ -4523,7 +4527,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                   disabled={paymentActionLoadingId === order.id}
                                   className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700"
                                 >
-                                  Cancel
+                                  Batalkan
                                 </button>
                               ) : null}
                               {hasProofLink ? (
@@ -4532,7 +4536,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                   target="_blank"
                                   rel="noreferrer"
                                   className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500"
-                                  aria-label="View proof"
+                                  aria-label="Lihat bukti"
                                 >
                                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                                     <path d="M2 12C4.8 7.8 8 5.7 12 5.7C16 5.7 19.2 7.8 22 12C19.2 16.2 16 18.3 12 18.3C8 18.3 4.8 16.2 2 12Z" strokeWidth="1.8" />
@@ -4542,7 +4546,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               ) : (
                                 <span
                                   className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-300"
-                                  aria-label="No proof link"
+                                  aria-label="Bukti belum tersedia"
                                 >
                                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                                     <path d="M2 12C4.8 7.8 8 5.7 12 5.7C16 5.7 19.2 7.8 22 12C19.2 16.2 16 18.3 12 18.3C8 18.3 4.8 16.2 2 12Z" strokeWidth="1.8" />
@@ -4565,7 +4569,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   </p>
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-slate-500" htmlFor="transaction-limit">
-                      Rows
+                      Baris
                     </label>
                     <select
                       id="transaction-limit"
@@ -4591,7 +4595,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       }
                       className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Prev
+                      Sebelumnya
                     </button>
                     <span className="text-xs font-semibold text-slate-600">
                       {tenantPaymentProofMeta.page} / {tenantPaymentProofMeta.totalPages}
@@ -4604,7 +4608,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       }
                       className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Next
+                      Selanjutnya
                     </button>
                   </div>
                 </div>
@@ -4616,10 +4620,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                  Reviews & Replies
+                  Ulasan & Balasan
                 </p>
                 <h2 className="text-2xl font-semibold text-slate-900">
-                  Balas review yang disubmit user
+                  Balas ulasan pengguna
                 </h2>
               </div>
 
@@ -4636,12 +4640,12 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               ) : null}
 
               {tenantReviewsLoading ? (
-                <p className="text-xs text-slate-500">Memuat review user...</p>
+                <p className="text-xs text-slate-500">Memuat ulasan pengguna...</p>
               ) : null}
 
               {!tenantReviewsLoading && tenantReviews.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">
-                  Belum ada review dari user.
+                  Belum ada ulasan dari pengguna.
                 </div>
               ) : null}
 
@@ -4695,7 +4699,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               }))
                             }
                             rows={3}
-                            placeholder="Tulis balasan tenant..."
+                            placeholder="Tulis balasan untuk ulasan..."
                             className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                           />
                           <button
@@ -4721,9 +4725,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="font-display text-3xl text-slate-900">Properties & Rooms</h2>
+                  <h2 className="font-display text-3xl text-slate-900">Properti & Kamar</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Manage your properties, rooms, and categories.
+                    Kelola properti, kamar, dan kategori.
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -4733,13 +4737,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       onClick={() => setActive("property-management")}
                       className="rounded-md px-4 py-1.5 text-sm font-medium text-slate-600 transition hover:text-slate-900"
                     >
-                      Properties
+                      Properti
                     </button>
                     <button
                       type="button"
                       className={`rounded-md px-4 py-1.5 text-sm font-medium shadow-sm ${BUTTON_THEME.softActive}`}
                     >
-                      Categories
+                      Kategori
                     </button>
                   </div>
                 </div>
@@ -4751,7 +4755,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     type="text"
                     value={newCategoryName}
                     onChange={(event) => setNewCategoryName(event.target.value)}
-                    placeholder="Category name..."
+                    placeholder="Masukkan nama kategori"
                     className={`h-11 flex-1 rounded-lg border border-slate-200 bg-white px-4 text-sm ${INPUT_THEME.focus}`}
                   />
                   <button
@@ -4760,7 +4764,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     disabled={categoryCreateLoading}
                     className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow-sm ${BUTTON_THEME.solid} disabled:opacity-60`}
                   >
-                    {categoryCreateLoading ? "Saving..." : "Add Category"}
+                    {categoryCreateLoading ? "Menyimpan..." : "Tambah Kategori"}
                   </button>
                 </div>
 
@@ -4778,9 +4782,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   <table className="w-full text-left text-sm">
                     <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
                       <tr>
-                        <th className="px-6 py-4">Category Name</th>
-                        <th className="px-6 py-4">Properties Count</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
+                        <th className="px-6 py-4">Nama Kategori</th>
+                        <th className="px-6 py-4">Jumlah Properti</th>
+                        <th className="px-6 py-4 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4817,7 +4821,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               )}
                             </td>
                             <td className="px-6 py-4 text-slate-500">
-                              {category.propertiesCount} properties
+                              {category.propertiesCount} properti
                             </td>
                             <td className="px-6 py-4 text-right">
                               <div className="flex items-center justify-end gap-2">
@@ -4829,7 +4833,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                       disabled={categoryCreateLoading}
                                       className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-60"
                                     >
-                                      Save
+                                      Simpan
                                     </button>
                                     <button
                                       type="button"
@@ -4837,7 +4841,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                       disabled={categoryCreateLoading}
                                       className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
                                     >
-                                      Cancel
+                                      Batal
                                     </button>
                                   </>
                                 ) : (
@@ -4848,7 +4852,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                       disabled={categoryCreateLoading}
                                       className="rounded-lg border border-cyan-200 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition hover:bg-cyan-50 disabled:opacity-60"
                                     >
-                                      Edit
+                                      Ubah
                                     </button>
                                     <button
                                       type="button"
@@ -4856,7 +4860,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                       disabled={categoryCreateLoading}
                                       className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
                                     >
-                                      Delete
+                                      Hapus
                                     </button>
                                   </>
                                 )}
@@ -4876,9 +4880,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             <div className="space-y-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="font-display text-3xl text-slate-900">Properties & Rooms</h2>
+                  <h2 className="font-display text-3xl text-slate-900">Properti & Kamar</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Manage your properties, rooms, and categories.
+                    Kelola properti, kamar, dan kategori.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -4887,21 +4891,21 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       type="button"
                       className={`rounded-md px-4 py-1.5 text-sm font-medium shadow-sm ${BUTTON_THEME.softActive}`}
                     >
-                      Properties
+                      Properti
                     </button>
                     <button
                       type="button"
                       onClick={() => setActive("property-category")}
                       className="rounded-md px-4 py-1.5 text-sm font-medium text-slate-600 transition hover:text-slate-900"
                     >
-                      Categories
+                      Kategori
                     </button>
                   </div>
                   <a
                     href="/tenant-property"
                     className={`inline-flex items-center justify-center rounded-lg px-5 py-2 text-sm font-medium shadow-sm ${BUTTON_THEME.solid}`}
                   >
-                    + Add Property
+                    + Tambah Properti
                   </a>
                 </div>
               </div>
@@ -4921,7 +4925,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     type="text"
                     value={propertySearch}
                     onChange={(event) => setPropertySearch(event.target.value)}
-                    placeholder="Search properties..."
+                    placeholder="Cari nama properti"
                     className={`h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                   />
                 </div>
@@ -4950,7 +4954,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           property.status === "Active" ? "bg-emerald-500" : "bg-amber-500"
                         }`}
                       >
-                        {property.status}
+                        {property.status === "Active" ? "Aktif" : "Perawatan"}
                       </span>
                       <span className="absolute right-3 top-3 rounded-md bg-white/90 px-2 py-1 text-xs font-semibold text-slate-700">
                         {property.type}
@@ -4970,7 +4974,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                       <div className="flex items-center justify-between border-t border-slate-100 pt-4">
                         <p className="text-base font-medium text-slate-700">
-                          {property.rooms.length} Rooms
+                          {property.rooms.length} Kamar
                         </p>
                         <button
                           type="button"
@@ -4983,7 +4987,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           }}
                           className={`rounded-xl px-4 py-2 text-sm font-medium transition hover:bg-cyan-100 ${BUTTON_THEME.softActive}`}
                         >
-                          Manage Rooms
+                          Kelola Kamar
                         </button>
                       </div>
                     </div>
@@ -5007,18 +5011,18 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     type="button"
                     onClick={() => setActive("property-management")}
                     className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-                    aria-label="Back to properties"
+                    aria-label="Kembali ke properti"
                   >
                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                       <path d="M15 6L9 12L15 18" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
                   <div>
-                    <h2 className="font-display text-3xl text-slate-900">Room Management</h2>
+                    <h2 className="font-display text-3xl text-slate-900">Kelola Kamar</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Manage prices for{" "}
+                      Kelola harga untuk{" "}
                       <span className="font-medium text-slate-900">
-                        {selectedProperty?.name ?? "Selected Property"}
+                        {selectedProperty?.name ?? "Properti Terpilih"}
                       </span>
                     </p>
                   </div>
@@ -5029,7 +5033,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     type="button"
                     onClick={() => shiftAvailabilityMonth(-1)}
                     className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
-                    aria-label="Previous month"
+                    aria-label="Bulan sebelumnya"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                       <path d="M15 6L9 12L15 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -5040,7 +5044,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     type="button"
                     onClick={() => shiftAvailabilityMonth(1)}
                     className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
-                    aria-label="Next month"
+                    aria-label="Bulan berikutnya"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                       <path d="M9 6L15 12L9 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -5055,7 +5059,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="text-sm text-slate-600">
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-                          Property
+                          Properti
                         </span>
                         <select
                           value={selectedPropertyId}
@@ -5073,7 +5077,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       </label>
                       <label className="text-sm text-slate-600">
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-                          Room
+                          Kamar
                         </span>
                         <select
                           value={selectedRoomId}
@@ -5081,7 +5085,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                           disabled={!selectedProperty}
                         >
-                          <option value="">Pilih room</option>
+                          <option value="">Pilih kamar</option>
                           {availableRooms.map((room) => (
                             <option key={room.id} value={room.id}>
                               {room.name}
@@ -5099,7 +5103,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   </div>
 
                   <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
-                    {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
+                    {["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"].map((day) => (
                       <div
                         key={day}
                         className="py-3 text-center text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
@@ -5160,7 +5164,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             </span>
                             {isPeak ? (
                               <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
-                                High
+                                Puncak
                               </span>
                             ) : null}
                           </div>
@@ -5183,7 +5187,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                                     : "bg-slate-200 text-slate-500"
                               }`}
                             >
-                              {status}
+                              {status === "Available"
+                                ? "Tersedia"
+                                : status === "Booked"
+                                  ? "Terpesan"
+                                  : "Ditutup"}
                             </span>
                           </div>
                         </button>
@@ -5199,15 +5207,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         <span className="font-semibold text-slate-900">
                           {selectedCalendarDates.length}
                         </span>{" "}
-                        dates selected.
+                        tanggal dipilih.
                       </span>
                     ) : (
-                      <span>Select dates on the calendar to apply changes.</span>
+                      <span>Pilih tanggal pada kalender untuk menerapkan perubahan.</span>
                     )}
                   </div>
 
                   <div className="mt-6">
-                    <p className="mb-3 text-sm font-semibold text-slate-700">Availability</p>
+                    <p className="mb-3 text-sm font-semibold text-slate-700">Ketersediaan</p>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -5218,7 +5226,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        Available
+                        Tersedia
                       </button>
                       <button
                         type="button"
@@ -5229,13 +5237,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        Blocked
+                        Ditutup
                       </button>
                     </div>
                   </div>
 
                   <div className="mt-6">
-                    <p className="mb-3 text-sm font-semibold text-slate-700">Price Adjustment</p>
+                    <p className="mb-3 text-sm font-semibold text-slate-700">Penyesuaian Harga</p>
                     <div className="flex rounded-xl bg-slate-100 p-1">
                       <button
                         type="button"
@@ -5246,7 +5254,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "text-slate-500"
                         }`}
                       >
-                        Rp Fixed
+                        Nominal (Rp)
                       </button>
                       <button
                         type="button"
@@ -5257,7 +5265,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "text-slate-500"
                         }`}
                       >
-                        % Percentage
+                        Persentase (%)
                       </button>
                     </div>
 
@@ -5269,16 +5277,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         type="number"
                         value={roomAdjustmentValue}
                         onChange={(event) => setRoomAdjustmentValue(event.target.value)}
-                        placeholder={roomAdjustmentType === "NOMINAL" ? "e.g. 200000" : "e.g. 10"}
+                        placeholder={roomAdjustmentType === "NOMINAL" ? "Contoh: 200000" : "Contoh: 10"}
                         className={`h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                       />
                     </div>
                     <p className="mt-3 text-sm text-slate-500">
-                      Base price is{" "}
+                      Harga dasar saat ini{" "}
                       <span className="font-semibold text-slate-700">
                         {formatCurrency(roomBasePrice)}
                       </span>
-                      .
                     </p>
                   </div>
 
@@ -5297,7 +5304,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     disabled={selectedCalendarDates.length === 0 || roomActionLoading}
                     className={`mt-8 flex h-11 w-full items-center justify-center rounded-xl px-4 text-sm font-medium ${BUTTON_THEME.solid} ${BUTTON_THEME.solidDisabled}`}
                   >
-                    {roomActionLoading ? "Applying..." : "Apply Changes"}
+                    {roomActionLoading ? "Menerapkan..." : "Terapkan Perubahan"}
                   </button>
                 </div>
               </div>
@@ -5345,7 +5352,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       {!rateRulesLoading && rateRules.length === 0 ? (
                         <tr>
                           <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
-                            Belum ada rate rule.
+                            Belum ada aturan harga.
                           </td>
                         </tr>
                       ) : null}

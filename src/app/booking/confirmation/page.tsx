@@ -192,7 +192,7 @@ function BookingConfirmationContent() {
         message?: string;
       };
       if (!response.ok) {
-        throw new Error(payload.message || "Gagal membuat booking.");
+        throw new Error(payload.message || "Gagal membuat pemesanan.");
       }
       const paymentMethod = payload.paymentMethod ?? form.paymentMethod;
       const params = new URLSearchParams({
@@ -210,7 +210,7 @@ function BookingConfirmationContent() {
       router.push(`/payment?${params.toString()}`);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Gagal membuat booking.",
+        err instanceof Error ? err.message : "Gagal membuat pemesanan.",
       );
     } finally {
       setLoading(false);
@@ -232,7 +232,7 @@ function BookingConfirmationContent() {
         <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-100">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-              Konfirmasi Booking
+              Konfirmasi Pemesanan
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-900">
               Lengkapi data pemesan
@@ -287,7 +287,7 @@ function BookingConfirmationContent() {
                 className="h-11 rounded-2xl border border-slate-200 px-4 text-sm"
               >
                 <option value="MANUAL_TRANSFER">Transfer Manual</option>
-                <option value="XENDIT">Payment Gateway (Xendit)</option>
+                <option value="XENDIT">Gateway Pembayaran</option>
               </select>
             </label>
           </div>
@@ -308,7 +308,7 @@ function BookingConfirmationContent() {
                 : "bg-slate-300"
             }`}
           >
-            {loading ? "Memproses..." : "Konfirmasi booking"}
+            {loading ? "Memproses..." : "Konfirmasi Pemesanan"}
           </button>
         </section>
 

@@ -24,7 +24,7 @@ const carouselImages = (process.env.NEXT_PUBLIC_CAROUSEL_IMAGES ?? "")
 
 const slides = [
   {
-    title: "Weekend Escape yang Lebih Hemat",
+    title: "Liburan Akhir Pekan Lebih Hemat",
     subtitle: "Hemat hingga 25% untuk pemesanan 2 malam atau lebih.",
     description:
       "Nikmati pilihan properti kurasi terbaik dengan lokasi premium dan fasilitas lengkap.",
@@ -48,7 +48,7 @@ const slides = [
       "Dapatkan rekomendasi destinasi yang relevan dengan preferensi dan jadwal Anda.",
     overlay: "from-black/50 via-black/25 to-black/10",
     image: carouselImages[2] ?? fallbackCarouselImages[2],
-    stats: ["Pilihan fleksibel", "Point reward", "Support 24/7"],
+    stats: ["Pilihan fleksibel", "Poin reward", "Layanan 24/7"],
   },
 ];
 
@@ -363,7 +363,7 @@ export default function Home() {
                 className="relative hidden items-center gap-2 md:flex"
               >
                 <span className="rounded-full bg-linear-to-r from-cyan-900 to-teal-800 px-4 py-2 text-sm font-semibold text-white shadow-sm">
-                  Hello, {userName}
+                  Halo, {userName}
                 </span>
                 <button
                   type="button"
@@ -396,13 +396,13 @@ export default function Home() {
                                 href="/profile"
                                 className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-cyan-50"
                               >
-                                My Profile
+                                Profil Saya
                               </a>
                               <a
                                 href="/my-transaction"
                                 className="block px-4 py-3 text-xs font-semibold text-slate-700 transition hover:bg-cyan-50"
                               >
-                                My Transaction
+                                Transaksi Saya
                               </a>
                           </>
                         )}
@@ -411,7 +411,7 @@ export default function Home() {
                           onClick={handleLogout}
                           className="block w-full px-4 py-3 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
                         >
-                          Sign out
+                          Keluar
                         </button>
                       </div>,
                       document.body,
@@ -471,7 +471,7 @@ export default function Home() {
           {userName ? (
             <div className="space-y-2">
               <div className="rounded-full bg-linear-to-r from-cyan-900 to-teal-800 px-4 py-2 text-center text-sm font-semibold text-white">
-                Hello, {userName}
+                Halo, {userName}
               </div>
 
               {isTenant ? (
@@ -489,14 +489,14 @@ export default function Home() {
                     onClick={handleCloseSidebar}
                     className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900"
                   >
-                    My Profile
+                    Profil Saya
                   </a>
                   <a
                     href="/my-transaction"
                     onClick={handleCloseSidebar}
                     className="block rounded-full border border-slate-200 px-4 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-900"
                   >
-                    My Transaction
+                    Transaksi Saya
                   </a>
                 </>
               )}
@@ -509,7 +509,7 @@ export default function Home() {
                 }}
                 className="w-full rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-cyan-300 hover:text-cyan-900"
               >
-                Logout
+                Keluar
               </button>
             </div>
           ) : (
@@ -589,7 +589,7 @@ export default function Home() {
                             ? "bg-cyan-800"
                             : "bg-slate-300"
                         }`}
-                        aria-label={`Slide ${index + 1}`}
+                        aria-label={`Slide ke-${index + 1}`}
                       />
                     ))}
                   </div>
@@ -785,7 +785,7 @@ export default function Home() {
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-700">
-                    Property list
+                    Daftar Properti
                   </p>
                   <h2 className="font-display mt-2 text-4xl text-slate-900">
                     Properti pilihan dengan lokasi strategis
@@ -839,7 +839,7 @@ export default function Home() {
                           Wi-Fi
                         </span>
                         <span className="rounded-full border border-cyan-100 bg-white/90 px-3 py-1">
-                          Free cancel
+                          Pembatalan gratis
                         </span>
                       </div>
                     </div>
@@ -858,7 +858,7 @@ export default function Home() {
                   </p>
                   <h2 className="font-display text-3xl text-slate-900">
                     Kelola properti dan jadwal ketersediaan Anda dalam satu
-                    dashboard
+                    dasbor
                   </h2>
                   <p className="text-sm text-slate-500">
                     Tambahkan properti baru, lengkapi detail, dan mulai menerima
@@ -883,7 +883,7 @@ export default function Home() {
                     desc: "Unggah foto cover dan galeri untuk meningkatkan konversi.",
                   },
                   {
-                    title: "Siap Menerima Booking",
+                    title: "Siap Menerima Pesanan",
                     desc: "Aktifkan properti agar langsung tampil di aplikasi.",
                   },
                 ].map((item) => (
@@ -912,7 +912,7 @@ export default function Home() {
             <p className="font-display text-2xl text-slate-900">Tentang BookIn</p>
             <p className="text-sm text-slate-500">
               Aplikasi pemesanan akomodasi dengan kurasi properti terbaik dan proses
-              booking yang transparan.
+              pemesanan yang transparan.
             </p>
           </div>
           <div className="space-y-3 text-sm text-slate-600">
@@ -963,9 +963,9 @@ function AuthNotice() {
         {authReason === "required" &&
           "Silakan login terlebih dahulu untuk mengakses halaman tersebut."}
         {authReason === "unverified" &&
-          "Akun kamu belum terverifikasi. Silakan verifikasi email dulu."}
+          "Akun Anda belum terverifikasi. Silakan verifikasi email terlebih dahulu."}
         {authReason === "forbidden" &&
-          "Kamu tidak memiliki akses ke halaman tersebut."}
+          "Anda tidak memiliki akses ke halaman tersebut."}
       </div>
     </div>
   );

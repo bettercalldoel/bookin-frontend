@@ -15,7 +15,7 @@ type RegisterResponse = {
   expiresAt: string;
 };
 
-const POPUP_MESSAGE = "Email terkirim, segera verifikasi akun anda";
+const POPUP_MESSAGE = "Email terkirim. Segera verifikasi akun Anda.";
 
 export default function RegisterForm({ accountType }: RegisterFormProps) {
   const [email, setEmail] = useState("");
@@ -26,10 +26,10 @@ export default function RegisterForm({ accountType }: RegisterFormProps) {
   const isTenant = accountType === "TENANT";
   const endpoint = isTenant ? "/auth/register/tenant" : "/auth/register/user";
 
-  const title = isTenant ? "Daftar Tenant" : "Daftar disini !";
+  const title = isTenant ? "Daftar Tenant" : "Daftar Akun";
   const subtitle = isTenant
     ? "Daftarkan properti Anda dan kelola pemesanan lebih mudah."
-    : "Supaya kamu bisa segera staycation.";
+    : "Agar Anda dapat segera melakukan pemesanan.";
   const submitLabel = isTenant ? "Daftar Tenant" : "Daftar";
 
   const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -104,8 +104,8 @@ export default function RegisterForm({ accountType }: RegisterFormProps) {
                         type="email"
                         placeholder={
                           isTenant
-                            ? "Masukkan email tenant"
-                            : "Masukkan email anda"
+                            ? "Masukkan email akun tenant"
+                            : "Masukkan email Anda"
                         }
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
@@ -138,7 +138,7 @@ export default function RegisterForm({ accountType }: RegisterFormProps) {
               </form>
               <div className="space-y-3 text-center text-sm text-slate-600">
                 <div>
-                  {isTenant ? "Sudah terdaftar sebagai tenant?" : "Sudah punya akun?"}{" "}
+                  {isTenant ? "Sudah terdaftar sebagai Tenant?" : "Sudah punya akun?"}{" "}
                   <a
                     href={isTenant ? "/tenant-login" : "/login"}
                     className="text-sky-600 underline hover:text-sky-700"
@@ -148,12 +148,12 @@ export default function RegisterForm({ accountType }: RegisterFormProps) {
                 </div>
                 {!isTenant ? (
                   <div>
-                    Ingin jadi tenant?{" "}
+                    Ingin menjadi tenant?{" "}
                     <a
                       className="text-sky-600 underline hover:text-sky-700"
                       href="/tenant-register"
                     >
-                      Daftar tenant
+                      Daftar Tenant
                     </a>
                   </div>
                 ) : null}

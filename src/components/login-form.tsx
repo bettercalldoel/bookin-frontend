@@ -58,8 +58,8 @@ export default function LoginForm({ accountType }: LoginFormProps) {
       if (data.account.type !== accountType) {
         throw new Error(
           isTenantLogin
-            ? "Akun ini bukan tenant. Gunakan halaman login user."
-            : "Akun ini tenant. Gunakan halaman login tenant.",
+            ? "Akun ini bukan akun tenant. Gunakan halaman masuk pengguna."
+            : "Akun ini tenant. Gunakan halaman masuk Tenant.",
         );
       }
 
@@ -75,7 +75,7 @@ export default function LoginForm({ accountType }: LoginFormProps) {
         router.push("/profile");
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Login gagal.";
+      const message = err instanceof Error ? err.message : "Gagal masuk.";
       setError(message);
       if (message.toLowerCase().includes("belum terverifikasi")) {
         setInfo("Silakan verifikasi email terlebih dahulu.");
@@ -123,12 +123,12 @@ export default function LoginForm({ accountType }: LoginFormProps) {
             <div className="inline-block px-2 py-2.5 sm:px-4">
               <form className="flex flex-col gap-4 pb-4" onSubmit={handleLogin}>
                 <h1 className="mb-2 text-2xl font-bold text-slate-900">
-                  {isTenantLogin ? "Login Tenant" : "Login"}
+                  {isTenantLogin ? "Masuk Tenant" : "Masuk"}
                 </h1>
                 <p className="text-sm text-slate-500">
                   {isTenantLogin
                     ? "Masuk untuk mengelola properti dan transaksi."
-                    : "Masuk untuk lanjutkan pemesanan."}
+                    : "Masuk untuk melanjutkan pemesanan."}
                 </p>
                 <div>
                   <div className="mb-2">
@@ -170,7 +170,7 @@ export default function LoginForm({ accountType }: LoginFormProps) {
                     </div>
                   </div>
                   <p className="mt-2 text-sm text-sky-600 hover:text-sky-700">
-                    <a href="/forgot-password">Forgot password?</a>
+                    <a href="/forgot-password">Lupa password?</a>
                   </p>
                 </div>
                 {error ? (
@@ -210,21 +210,21 @@ export default function LoginForm({ accountType }: LoginFormProps) {
                 {isTenantLogin ? (
                   <>
                     <div>
-                      Belum punya akun tenant?{" "}
+                      Belum punya akun Tenant?{" "}
                       <a
                         className="text-sky-600 underline hover:text-sky-700"
                         href="/tenant-register"
                       >
-                        Daftar tenant
+                        Daftar Tenant
                       </a>
                     </div>
                     <div>
-                      Login sebagai user?{" "}
+                      Masuk sebagai pengguna?{" "}
                       <a
                         className="text-sky-600 underline hover:text-sky-700"
                         href="/login"
                       >
-                        Masuk user
+                        Masuk Pengguna
                       </a>
                     </div>
                   </>
@@ -240,21 +240,21 @@ export default function LoginForm({ accountType }: LoginFormProps) {
                       </a>
                     </div>
                     <div>
-                      Ingin jadi tenant?{" "}
+                      Ingin menjadi tenant?{" "}
                       <a
                         className="text-sky-600 underline hover:text-sky-700"
                         href="/tenant-register"
                       >
-                        Daftar tenant
+                        Daftar Tenant
                       </a>
                     </div>
                     <div>
-                      Sudah punya akun tenant?{" "}
+                      Sudah punya akun Tenant?{" "}
                       <a
                         className="text-sky-600 underline hover:text-sky-700"
                         href="/tenant-login"
                       >
-                        Masuk tenant
+                        Masuk Tenant
                       </a>
                     </div>
                   </>

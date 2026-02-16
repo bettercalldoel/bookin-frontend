@@ -191,7 +191,7 @@ export default function BookingPage() {
         });
         if (!res.ok) {
           const payload = await res.json().catch(() => ({}));
-          throw new Error(payload.message || "Gagal memuat booking.");
+          throw new Error(payload.message || "Gagal memuat pesanan.");
         }
         const json = (await res.json()) as BookingListResponse;
         aggregated.push(...(json.data ?? []));
@@ -203,7 +203,7 @@ export default function BookingPage() {
       setLastSyncedAt(new Date().toISOString());
     } catch (err) {
       setBookingsError(
-        err instanceof Error ? err.message : "Gagal memuat booking.",
+        err instanceof Error ? err.message : "Gagal memuat pesanan.",
       );
       setBookings([]);
     } finally {
@@ -282,7 +282,7 @@ export default function BookingPage() {
    * ====================== */
   const previewBooking = async () => {
     if (!isFormReady) {
-      setPreviewError("Lengkapi data booking terlebih dahulu.");
+      setPreviewError("Lengkapi data pemesanan terlebih dahulu.");
       return;
     }
 
@@ -301,7 +301,7 @@ export default function BookingPage() {
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.message || "Preview gagal.");
+        throw new Error(payload.message || "Pratinjau gagal.");
       }
 
       const json = (await res.json()) as BookingPreview;
@@ -309,7 +309,7 @@ export default function BookingPage() {
     } catch (err) {
       setPreview(null);
       setPreviewError(
-        err instanceof Error ? err.message : "Preview gagal.",
+        err instanceof Error ? err.message : "Pratinjau gagal.",
       );
     } finally {
       setPreviewLoading(false);
@@ -334,13 +334,13 @@ export default function BookingPage() {
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.message || "Gagal membuat booking");
+        throw new Error(payload.message || "Gagal membuat pemesanan");
       }
 
       await fetchBookings(true);
-      alert("Booking created");
+      alert("Pemesanan berhasil dibuat.");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error creating booking");
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan saat membuat pemesanan.");
     } finally {
       setLoading(false);
     }
@@ -356,17 +356,17 @@ export default function BookingPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1>Booking</h1>
+      <h1>Pemesanan</h1>
 
       {/* ======================
        * Create Booking Form
        * ====================== */}
       <section style={{ marginBottom: 32 }}>
-        <h2>Create Booking</h2>
+        <h2>Buat Pemesanan</h2>
 
         <div style={{ display: "grid", gap: 10, maxWidth: 420 }}>
           <label style={{ display: "grid", gap: 6 }}>
-            Property
+            Properti
             <select
               value={form.propertyId}
               onChange={(e) => handlePropertyChange(e.target.value)}
@@ -394,7 +394,7 @@ export default function BookingPage() {
           )}
 
           <label style={{ display: "grid", gap: 6 }}>
-            Room Type
+            Tipe Kamar
             <select
               value={form.roomTypeId}
               onChange={(e) =>
@@ -402,7 +402,7 @@ export default function BookingPage() {
               }
               disabled={!form.propertyId}
             >
-              <option value="">Pilih room</option>
+              <option value="">Pilih kamar</option>
               {availableRooms.map((room) => (
                 <option key={room.id} value={room.id}>
                   {room.name} · {formatIDR(room.basePrice)}
@@ -443,7 +443,7 @@ export default function BookingPage() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            Guests
+            Tamu
             <input
               type="number"
               min={1}
@@ -455,7 +455,7 @@ export default function BookingPage() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            Rooms
+            Kamar
             <input
               type="number"
               min={1}
@@ -468,10 +468,10 @@ export default function BookingPage() {
 
           <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
             <button disabled={previewLoading} onClick={previewBooking}>
-              {previewLoading ? "Previewing..." : "Preview Harga"}
+              {previewLoading ? "Meninjau..." : "Pratinjau Harga"}
             </button>
             <button disabled={loading} onClick={createBooking}>
-              {loading ? "Creating..." : "Create Booking"}
+              {loading ? "Membuat..." : "Buat Pemesanan"}
             </button>
           </div>
         </div>
@@ -482,7 +482,7 @@ export default function BookingPage() {
 
         {preview && (
           <div style={{ marginTop: 16 }}>
-            <h3>Preview Harga</h3>
+            <h3>Pratinjau Harga</h3>
             <p>
               <strong>Total:</strong> {formatIDR(preview.totalAmount)}
             </p>
@@ -502,9 +502,9 @@ export default function BookingPage() {
                   <p>
                     <strong>{night.date}</strong>
                   </p>
-                  <p>Base: {formatIDR(night.basePrice)}</p>
+                  <p>Harga dasar: {formatIDR(night.basePrice)}</p>
                   <p>Penyesuaian: {formatIDR(night.adjustment)}</p>
-                  <p>Final: {formatIDR(night.finalPrice)}</p>
+                  <p>Harga akhir: {formatIDR(night.finalPrice)}</p>
                   <p>Stok tersedia: {night.availableUnits}</p>
                 </div>
               ))}
@@ -518,19 +518,19 @@ export default function BookingPage() {
        * ====================== */}
       <section>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h2>My Bookings</h2>
+          <h2>Daftar Pesanan Saya</h2>
           <button
             type="button"
             onClick={() => fetchBookings()}
             disabled={bookingsLoading}
           >
-            {bookingsLoading ? "Refreshing..." : "Refresh status"}
+            {bookingsLoading ? "Memuat ulang..." : "Muat Ulang Status"}
           </button>
         </div>
 
         {lastSyncedAt && (
           <p style={{ fontSize: 12, color: "#718096" }}>
-            Last sync: {formatDateTime(lastSyncedAt)}
+            Sinkron terakhir: {formatDateTime(lastSyncedAt)}
           </p>
         )}
 
@@ -538,7 +538,7 @@ export default function BookingPage() {
           <p style={{ fontSize: 12, color: "#c53030" }}>{bookingsError}</p>
         )}
 
-        {!bookingsLoading && bookings.length === 0 && <p>No bookings yet</p>}
+        {!bookingsLoading && bookings.length === 0 && <p>Belum ada pesanan.</p>}
 
         {bookings.map((b) => (
           <div
@@ -550,17 +550,17 @@ export default function BookingPage() {
             }}
           >
             <p>
-              <strong>Order:</strong> {b.orderNo}
+              <strong>No. Pesanan:</strong> {b.orderNo}
             </p>
             <p>
-              <strong>Date:</strong> {formatDateTime(b.checkIn)} →{" "}
+              <strong>Tanggal:</strong> {formatDateTime(b.checkIn)} →{" "}
               {formatDateTime(b.checkOut)}
             </p>
             <p>
-              <strong>Guests:</strong> {b.guests}
+              <strong>Tamu:</strong> {b.guests}
             </p>
             <p>
-              <strong>Rooms:</strong> {b.rooms}
+              <strong>Kamar:</strong> {b.rooms}
             </p>
             <p>
               <strong>Status:</strong> {formatBookingStatus(b.status)}

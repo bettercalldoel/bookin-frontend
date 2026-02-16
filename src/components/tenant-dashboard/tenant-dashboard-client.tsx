@@ -1733,11 +1733,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         const actionDescription =
           roomActionType === "close"
             ? parsedUnits !== null
-              ? `Kamu akan menutup ${parsedUnits} unit untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
-              : `Kamu akan menutup kamar untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
+              ? `Anda akan menutup ${parsedUnits} unit untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
+              : `Anda akan menutup kamar untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
             : parsedUnits !== null
-              ? `Kamu akan membuka kamar dengan ${parsedUnits} unit tersedia untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
-              : `Kamu akan membuka kamar untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`;
+              ? `Anda akan membuka kamar dengan ${parsedUnits} unit tersedia untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`
+              : `Anda akan membuka kamar untuk ${sortedDates.length} tanggal yang dipilih. Lanjutkan?`;
 
         setRoomActionConfirm({
           title: actionTitle,
@@ -1800,8 +1800,8 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     setTenantActionConfirm({
       title: "Konfirmasi Perubahan Kamar",
       description: hasRateAdjustment
-        ? `Kamu akan ${actionLabel} kamar di ${sortedDates.length} tanggal sekaligus menerapkan penyesuaian harga. Lanjutkan?`
-        : `Kamu akan ${actionLabel} kamar di ${sortedDates.length} tanggal terpilih. Lanjutkan?`,
+        ? `Anda akan ${actionLabel} kamar di ${sortedDates.length} tanggal sekaligus menerapkan penyesuaian harga. Lanjutkan?`
+        : `Anda akan ${actionLabel} kamar di ${sortedDates.length} tanggal terpilih. Lanjutkan?`,
       confirmLabel: "Terapkan",
       payload: {
         type: "apply-room-sidebar",

@@ -636,7 +636,7 @@ export default function MyTransactionClient() {
                   {trx.review ? (
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Ulasan Kamu
+                        Ulasan Anda
                       </p>
                       <p className="mt-1 text-sm font-semibold text-amber-700">
                         {"★".repeat(Math.max(0, Math.min(5, trx.review.rating)))}

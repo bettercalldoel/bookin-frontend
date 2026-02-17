@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
 import { formatDateDDMMYYYY } from "@/lib/date-format";
+import { useRouter } from "next/navigation";
 
 type PaymentMethod = "MANUAL_TRANSFER" | "XENDIT";
 
@@ -50,6 +51,8 @@ function PaymentContent() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+
+  const router = useRouter();
 
   const isManualTransfer = paymentMethod !== "XENDIT";
   const canUpload = Boolean(bookingId && proofFile && !uploading && isManualTransfer);
@@ -128,6 +131,36 @@ function PaymentContent() {
     setRedirectingToGateway(true);
     window.location.href = xenditInvoiceUrl;
   };
+
+  const handleCancelBooking = async () => {
+    console.log("Cancel booking");
+
+    const url = `${API_BASE_URL}/bookings/${bookingId}/cancel`;
+
+    const token = getAuthToken();
+    if (!token) {
+      setUploadError("Silakan login kembali untuk upload bukti transfer.");
+      return;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`, 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        cancelledBy: "USER"
+      })
+    })
+
+    if (!response.ok) {
+      setUploadError("Gagal membatalkan booking. Silakan coba lagi.");
+      return;
+    }
+
+    router.push("/")
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-12">
@@ -222,6 +255,7 @@ function PaymentContent() {
                   {proofFile ? (
                     <p className="text-xs text-slate-500">Berkas: {proofFile.name}</p>
                   ) : null}
+<<<<<<< Updated upstream
                   <button
                     type="button"
                     onClick={handleUploadProof}
@@ -232,6 +266,27 @@ function PaymentContent() {
                   >
                     {uploading ? "Mengunggah..." : "Unggah Bukti Pembayaran"}
                   </button>
+=======
+                  <div className="flex justify-between">
+                    <button
+                      type="button"
+                      onClick={handleUploadProof}
+                      disabled={!canUpload}
+                      className={`rounded-2xl px-4 py-2 text-sm font-semibold text-white transition ${
+                        canUpload ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300"
+                      }`}
+                    >
+                      {uploading ? "Mengunggah..." : "Upload Bukti Pembayaran"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelBooking} // Implement cancel booking logic
+                      className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 transition"
+                    >
+                        Cancel Booking
+                    </button>
+                  </div>
+>>>>>>> Stashed changes
                 </>
               )}
             </>

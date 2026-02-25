@@ -5,6 +5,8 @@ import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
 import { BUTTON_THEME, INPUT_THEME } from "@/lib/button-theme";
 import { formatDateDDMMYYYY } from "@/lib/date-format";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
+import type { AppLocale } from "@/lib/app-locale";
 import ConfirmModal from "@/components/ui/confirm-modal";
 
 type DashboardUser = {
@@ -103,6 +105,16 @@ type TenantPaymentProof = {
     guests: number;
     rooms: number;
     totalAmount: string;
+    subtotalAmount: string;
+    appFeeAmount: string;
+    taxAmount: string;
+    tenantFeeAmount: string;
+    tenantPayoutAmount: string;
+    breakfastSelected: boolean;
+    breakfastPax: number;
+    breakfastUnitPrice: string;
+    breakfastTotal: string;
+    currency: string;
     status: BookingStatus;
     property: {
       id: string;
@@ -154,6 +166,12 @@ type TenantOrderRow = {
   nights: number;
   status: BookingStatus;
   total: number;
+  grossTotal: number;
+  tenantFee: number;
+  netPayout: number;
+  breakfastSelected: boolean;
+  breakfastPax: number;
+  breakfastTotal: number;
   paymentProofId: string;
   paymentProofStatus: PaymentProofStatus;
   paymentProofImageUrl: string;
@@ -170,6 +188,8 @@ type SalesTransactionRow = {
   user: string;
   status: BookingStatus;
   total: number;
+  grossTotal?: number;
+  netPayout?: number;
 };
 
 type SalesPropertyRow = {
@@ -178,6 +198,7 @@ type SalesPropertyRow = {
   transactions: number;
   users: number;
   totalSales: number;
+  netPayout: number;
   latestTransactionAt: string | null;
 };
 
@@ -189,6 +210,7 @@ type SalesTrendRow = {
 
 type SalesSummary = {
   totalSales: number;
+  totalNetPayout?: number;
   totalTransactions: number;
   avgPerTransaction: number;
 };
@@ -221,6 +243,7 @@ type SalesUserRow = {
   transactions: number;
   properties: number;
   totalSales: number;
+  netPayout: number;
   latestTransactionAt: string | null;
 };
 
@@ -361,68 +384,90 @@ type CatalogCategory = {
   name: string;
 };
 
-const navGroups: NavGroup[] = [
-  {
-    title: "Utama",
-    items: [
-      {
-        key: "dashboard-overview",
-        label: "Ringkasan Dashboard",
-        helper: "Ringkasan mitra",
-      },
-    ],
-  },
-  {
-    title: "Akun Tenant",
-    items: [
-      {
-        key: "tenant-profile",
-        label: "Profil Tenant",
-        helper: "Profil akun mitra",
-      },
-    ],
-  },
-  {
-    title: "Properti & Kamar",
-    items: [
-      {
-        key: "property-management",
-        label: "Properti & Kamar",
-        helper: "Daftar properti, kamar, dan kalender",
-      },
-    ],
-  },
-  {
-    title: "Transaksi",
-    items: [
-      {
-        key: "order-management",
-        label: "Kelola Pesanan",
-        helper: "Status pesanan & konfirmasi pembayaran",
-      },
-    ],
-  },
-  {
-    title: "Relasi Pelanggan",
-    items: [
-      {
-        key: "customer-relations",
-        label: "Ulasan & Balasan",
-        helper: "Balas ulasan pengguna",
-      },
-    ],
-  },
-  {
-    title: "Laporan & Analisis",
-    items: [
-      {
-        key: "sales-report",
-        label: "Laporan & Analisis",
-        helper: "Laporan penjualan dan ketersediaan properti",
-      },
-    ],
-  },
-];
+type CatalogCategoryListResponse = {
+  data: CatalogCategory[];
+  meta?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+};
+
+const buildNavGroups = (locale: AppLocale): NavGroup[] => {
+  const isEn = locale === "en";
+
+  return [
+    {
+      title: isEn ? "Main" : "Utama",
+      items: [
+        {
+          key: "dashboard-overview",
+          label: isEn ? "Dashboard Overview" : "Ringkasan Dashboard",
+          helper: isEn ? "Partner summary" : "Ringkasan mitra",
+        },
+      ],
+    },
+    {
+      title: isEn ? "Tenant Account" : "Akun Tenant",
+      items: [
+        {
+          key: "tenant-profile",
+          label: isEn ? "Tenant Profile" : "Profil Tenant",
+          helper: isEn ? "Partner account profile" : "Profil akun mitra",
+        },
+      ],
+    },
+    {
+      title: isEn ? "Properties & Rooms" : "Properti & Kamar",
+      items: [
+        {
+          key: "property-management",
+          label: isEn ? "Properties & Rooms" : "Properti & Kamar",
+          helper: isEn
+            ? "Property list, rooms, and calendar"
+            : "Daftar properti, kamar, dan kalender",
+        },
+      ],
+    },
+    {
+      title: isEn ? "Transactions" : "Transaksi",
+      items: [
+        {
+          key: "order-management",
+          label: isEn ? "Manage Orders" : "Kelola Pesanan",
+          helper: isEn
+            ? "Order status and payment confirmation"
+            : "Status pesanan & konfirmasi pembayaran",
+        },
+      ],
+    },
+    {
+      title: isEn ? "Customer Relations" : "Relasi Pelanggan",
+      items: [
+        {
+          key: "customer-relations",
+          label: isEn ? "Reviews & Replies" : "Ulasan & Balasan",
+          helper: isEn ? "Reply to user reviews" : "Balas ulasan pengguna",
+        },
+      ],
+    },
+    {
+      title: isEn ? "Reports & Analytics" : "Laporan & Analisis",
+      items: [
+        {
+          key: "sales-report",
+          label: isEn ? "Reports & Analytics" : "Laporan & Analisis",
+          helper: isEn
+            ? "Sales report and property availability"
+            : "Laporan penjualan dan ketersediaan properti",
+        },
+      ],
+    },
+  ];
+};
 
 const renderNavIcon = (key: NavKey) => {
   const baseClass = "h-4 w-4";
@@ -486,6 +531,7 @@ const overviewMonthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"];
 
 const defaultSalesSummary: SalesSummary = {
   totalSales: 0,
+  totalNetPayout: 0,
   totalTransactions: 0,
   avgPerTransaction: 0,
 };
@@ -653,6 +699,12 @@ const mapPaymentProofsToOrders = (proofs: TenantPaymentProof[]): TenantOrderRow[
       nights: countNights(proof.booking.checkIn, proof.booking.checkOut),
       status: proof.booking.status,
       total: toSafeAmount(proof.booking.totalAmount),
+      grossTotal: toSafeAmount(proof.booking.subtotalAmount),
+      tenantFee: toSafeAmount(proof.booking.tenantFeeAmount),
+      netPayout: toSafeAmount(proof.booking.tenantPayoutAmount),
+      breakfastSelected: proof.booking.breakfastSelected,
+      breakfastPax: proof.booking.breakfastPax,
+      breakfastTotal: toSafeAmount(proof.booking.breakfastTotal),
       paymentProofId: proof.id,
       paymentProofStatus: proof.status,
       paymentProofImageUrl: proof.imageUrl,
@@ -792,9 +844,102 @@ const propertyCardVisuals = [
   },
 ];
 
-const reportWeekdayLabels = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
+const getReportWeekdayLabels = (locale: AppLocale) =>
+  locale === "en"
+    ? ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    : ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
 
 export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
+  const locale = useAppLocaleValue();
+  const isEnglish = locale === "en";
+  const navGroups = useMemo(() => buildNavGroups(locale), [locale]);
+  const reportWeekdayLabels = useMemo(() => getReportWeekdayLabels(locale), [locale]);
+  const roomWeekdayLabels = useMemo(
+    () =>
+      isEnglish
+        ? ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+        : ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"],
+    [isEnglish],
+  );
+  const tenantCopy = useMemo(
+    () => ({
+      failedLoadProperty: isEnglish ? "Failed to load properties." : "Gagal memuat properti.",
+      failedLoadCalendar: isEnglish ? "Failed to load calendar." : "Gagal memuat kalender.",
+      failedLoadRateRule:
+        isEnglish ? "Failed to load pricing rules." : "Gagal memuat aturan harga.",
+      selectRoomFirst: isEnglish ? "Please select a room first." : "Pilih kamar terlebih dahulu.",
+      fillDateRange:
+        isEnglish
+          ? "Start and end date are required."
+          : "Tanggal mulai dan akhir wajib diisi.",
+      roomActionNotReady:
+        isEnglish
+          ? "Room action is not ready for confirmation."
+          : "Aksi kamar belum siap dikonfirmasi.",
+      applyRoomFailed:
+        isEnglish
+          ? "Failed to apply room availability updates."
+          : "Gagal menerapkan perubahan kamar.",
+      propertyReportTitle: isEnglish ? "Property Report" : "Laporan Properti",
+      propertyReportSubtitle: isEnglish
+        ? "Monitor room availability in calendar format."
+        : "Monitor ketersediaan properti dan kamar dalam bentuk kalender.",
+      reloadCalendar: isEnglish ? "Reload Calendar" : "Muat Ulang Kalender",
+      loadingShort: isEnglish ? "Loading..." : "Memuat...",
+      salesReportTab: isEnglish ? "Sales Report" : "Laporan Penjualan",
+      propertyAvailabilityTab:
+        isEnglish ? "Property Availability" : "Ketersediaan Properti",
+      property: isEnglish ? "Property" : "Properti",
+      room: isEnglish ? "Room" : "Kamar",
+      selectProperty: isEnglish ? "Select property" : "Pilih properti",
+      selectRoom: isEnglish ? "Select room" : "Pilih kamar",
+      startDate: isEnglish ? "Start Date" : "Tanggal Mulai",
+      endDate: isEnglish ? "End Date" : "Tanggal Akhir",
+      currentMonth: isEnglish ? "Current Month" : "Bulan Ini",
+      selectedPropertyFallback: isEnglish ? "No property selected" : "Belum pilih properti",
+      selectedRoomFallback: isEnglish ? "No room selected" : "Belum memilih kamar",
+      prevMonthAria: isEnglish ? "Previous month" : "Bulan sebelumnya",
+      nextMonthAria: isEnglish ? "Next month" : "Bulan berikutnya",
+      rows: isEnglish ? "Rows" : "Baris",
+      previous: isEnglish ? "Previous" : "Sebelumnya",
+      next: isEnglish ? "Next" : "Selanjutnya",
+      availabilityCalendar: isEnglish ? "Availability Calendar" : "Kalender Ketersediaan",
+      available: isEnglish ? "Available" : "Tersedia",
+      booked: isEnglish ? "Booked" : "Terpesan",
+      maintenance: isEnglish ? "Maintenance" : "Perawatan",
+      dayLabel: isEnglish ? "day" : "hari",
+      manageRoom: isEnglish ? "Manage Rooms" : "Kelola Kamar",
+      managePriceFor: isEnglish ? "Manage pricing for" : "Kelola harga untuk",
+      selectedProperty: isEnglish ? "Selected Property" : "Properti Terpilih",
+      backToPropertyAria: isEnglish ? "Back to properties" : "Kembali ke properti",
+      loadingCalendar: isEnglish ? "Loading calendar..." : "Memuat kalender...",
+      peak: isEnglish ? "Peak" : "Puncak",
+      closed: isEnglish ? "Closed" : "Ditutup",
+      datesSelected: isEnglish ? "dates selected." : "tanggal dipilih.",
+      selectDateHint: isEnglish
+        ? "Select dates from the calendar to apply updates."
+        : "Pilih tanggal pada kalender untuk menerapkan perubahan.",
+      availability: isEnglish ? "Availability" : "Ketersediaan",
+      priceAdjustment: isEnglish ? "Price Adjustment" : "Penyesuaian Harga",
+      nominalLabel: isEnglish ? "Fixed (IDR)" : "Nominal (Rp)",
+      percentageLabel: isEnglish ? "Percentage (%)" : "Persentase (%)",
+      exampleNominal: isEnglish ? "Example: 200000" : "Contoh: 200000",
+      examplePercent: isEnglish ? "Example: 10" : "Contoh: 10",
+      basePriceNow: isEnglish ? "Current base price" : "Harga dasar saat ini",
+      applying: isEnglish ? "Applying..." : "Menerapkan...",
+      applyChanges: isEnglish ? "Apply Changes" : "Terapkan Perubahan",
+      priceAdjustmentHistory:
+        isEnglish ? "Price adjustment history" : "Riwayat penyesuaian harga",
+      name: isEnglish ? "Name" : "Nama",
+      date: isEnglish ? "Date" : "Tanggal",
+      adjustment: isEnglish ? "Adjustment" : "Penyesuaian",
+      action: isEnglish ? "Action" : "Aksi",
+      propertiesNoun: isEnglish ? "properties" : "properti",
+      propertyPageLabel: isEnglish ? "Property page" : "Halaman properti",
+    }),
+    [isEnglish],
+  );
+
   const [active, setActive] = useState<NavKey>("dashboard-overview");
   const [reportTab, setReportTab] = useState<"sales" | "property">("sales");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -977,7 +1122,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       if (!point) return;
       point.orders += 1;
       if (proof.booking.status !== "DIBATALKAN") {
-        point.revenue += toSafeAmount(proof.booking.totalAmount);
+        point.revenue += toSafeAmount(proof.booking.subtotalAmount);
       }
     });
 
@@ -1013,7 +1158,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       if (proof.booking.status === "DIBATALKAN") current.cancelled += 1;
 
       if (proof.booking.status !== "DIBATALKAN") {
-        current.revenue += toSafeAmount(proof.booking.totalAmount);
+        current.revenue += toSafeAmount(proof.booking.subtotalAmount);
       }
 
       if (toTimestamp(proof.submittedAt) > toTimestamp(current.lastSubmittedAt)) {
@@ -1053,11 +1198,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         submittedAt.getMonth() === currentMonth &&
         submittedAt.getFullYear() === currentYear;
       if (!isCurrentMonth || proof.booking.status === "DIBATALKAN") return sum;
-      return sum + toSafeAmount(proof.booking.totalAmount);
+      return sum + toSafeAmount(proof.booking.subtotalAmount);
     }, 0);
     const totalRevenue = overviewPaymentProofs.reduce((sum, proof) => {
       if (proof.booking.status === "DIBATALKAN") return sum;
-      return sum + toSafeAmount(proof.booking.totalAmount);
+      return sum + toSafeAmount(proof.booking.subtotalAmount);
     }, 0);
     const occupancyRate =
       totalRooms > 0 ? Math.min(100, Math.round((activeOrders / totalRooms) * 100)) : 0;
@@ -1333,6 +1478,35 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     [properties, selectedPropertyId],
   );
 
+  const availabilityProperties = useMemo(() => {
+    const byName = new Map<string, TenantProperty>();
+    const normalizeName = (value: string) => value.trim().toLowerCase();
+    const scoreProperty = (item: TenantProperty) =>
+      (item.rooms?.length ?? 0) * 100 +
+      (item.cityName ? 10 : 0) +
+      (item.province ? 10 : 0) +
+      (item.address ? 1 : 0);
+
+    for (const property of properties) {
+      const nameKey = normalizeName(property.name ?? "");
+      if (!nameKey) continue;
+
+      const current = byName.get(nameKey);
+      if (!current) {
+        byName.set(nameKey, property);
+        continue;
+      }
+
+      if (scoreProperty(property) > scoreProperty(current)) {
+        byName.set(nameKey, property);
+      }
+    }
+
+    return Array.from(byName.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, "id-ID"),
+    );
+  }, [properties]);
+
   const availableRooms = selectedProperty?.rooms ?? [];
 
   const selectedRoom = useMemo(
@@ -1362,26 +1536,122 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     };
   }, [roomActionType, roomAdjustmentType, roomAdjustmentValue, selectedRoom]);
 
-  const mapTenantProperties = (items: TenantProperty[]) =>
-    items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description ?? null,
-      address: item.address ?? null,
-      categoryId: item.categoryId ?? null,
-      categoryName: item.categoryName ?? null,
-      cityName: item.cityName ?? null,
-      province: item.province ?? null,
-      coverUrl: item.coverUrl ?? null,
-      galleryUrls: Array.isArray(item.galleryUrls) ? item.galleryUrls : [],
-      rooms: (item.rooms ?? []).map((room: any) => ({
-        id: room.id,
-        name: room.name,
-        price: room.price,
-        totalUnits: room.totalUnits,
-        maxGuests: room.maxGuests,
-      })),
-    })) as TenantProperty[];
+  const mapTenantProperties = (items: TenantProperty[]) => {
+    const propertyMap = new Map<string, TenantProperty>();
+    const propertyIdentityMap = new Map<string, string>();
+    const normalizeText = (value: unknown) =>
+      typeof value === "string" ? value.trim().toLowerCase() : "";
+
+    const normalizeRooms = (rooms: unknown) => {
+      const roomMap = new Map<string, TenantRoom>();
+      const roomIdentityMap = new Map<string, string>();
+      const roomList = Array.isArray(rooms) ? rooms : [];
+
+      for (const rawRoom of roomList) {
+        const room =
+          rawRoom && typeof rawRoom === "object"
+            ? (rawRoom as Partial<TenantRoom>)
+            : null;
+        const roomId = typeof room?.id === "string" ? room.id.trim() : "";
+        const roomIdentity = [
+          normalizeText(room?.name),
+          normalizeText(room?.price),
+          typeof room?.totalUnits === "number" ? String(room.totalUnits) : "",
+          typeof room?.maxGuests === "number" ? String(room.maxGuests) : "",
+        ].join("|");
+        const canonicalRoomId =
+          (roomIdentityMap.get(roomIdentity) ?? roomId) || "";
+        if (!canonicalRoomId) continue;
+
+        if (roomIdentity && !roomIdentityMap.has(roomIdentity)) {
+          roomIdentityMap.set(roomIdentity, canonicalRoomId);
+        }
+
+        const prev = roomMap.get(canonicalRoomId);
+        roomMap.set(canonicalRoomId, {
+          id: canonicalRoomId,
+          name: room?.name ?? prev?.name ?? "-",
+          price: room?.price ?? prev?.price ?? "0",
+          totalUnits:
+            typeof room?.totalUnits === "number"
+              ? room.totalUnits
+              : prev?.totalUnits ?? 0,
+          maxGuests:
+            typeof room?.maxGuests === "number"
+              ? room.maxGuests
+              : prev?.maxGuests ?? 0,
+        });
+      }
+
+      return Array.from(roomMap.values());
+    };
+
+    const normalizeGallery = (galleryUrls: unknown) =>
+      Array.from(
+        new Set(
+          (Array.isArray(galleryUrls) ? galleryUrls : []).filter(
+            (item): item is string => typeof item === "string" && item.trim().length > 0,
+          ),
+        ),
+      );
+
+    for (const item of items) {
+      const propertyId = typeof item?.id === "string" ? item.id.trim() : "";
+      const propertyIdentity = [
+        normalizeText(item?.name),
+        normalizeText(item?.cityName),
+        normalizeText(item?.province),
+      ].join("|");
+      const canonicalPropertyId =
+        (propertyIdentityMap.get(propertyIdentity) ?? propertyId) || "";
+      if (!canonicalPropertyId) continue;
+
+      if (propertyIdentity && !propertyIdentityMap.has(propertyIdentity)) {
+        propertyIdentityMap.set(propertyIdentity, canonicalPropertyId);
+      }
+
+      const normalizedRooms = normalizeRooms(item.rooms);
+      const normalizedGallery = normalizeGallery(item.galleryUrls);
+      const current = propertyMap.get(canonicalPropertyId);
+
+      if (!current) {
+        propertyMap.set(canonicalPropertyId, {
+          id: canonicalPropertyId,
+          name: item.name,
+          description: item.description ?? null,
+          address: item.address ?? null,
+          categoryId: item.categoryId ?? null,
+          categoryName: item.categoryName ?? null,
+          cityName: item.cityName ?? null,
+          province: item.province ?? null,
+          coverUrl: item.coverUrl ?? null,
+          galleryUrls: normalizedGallery,
+          rooms: normalizedRooms,
+        });
+        continue;
+      }
+
+      propertyMap.set(canonicalPropertyId, {
+        ...current,
+        name: current.name || item.name,
+        description: current.description ?? item.description ?? null,
+        address: current.address ?? item.address ?? null,
+        categoryId: current.categoryId ?? item.categoryId ?? null,
+        categoryName: current.categoryName ?? item.categoryName ?? null,
+        cityName: current.cityName ?? item.cityName ?? null,
+        province: current.province ?? item.province ?? null,
+        coverUrl: current.coverUrl ?? item.coverUrl ?? null,
+        galleryUrls: Array.from(
+          new Set([...(current.galleryUrls ?? []), ...normalizedGallery]),
+        ),
+        rooms: normalizeRooms([...current.rooms, ...normalizedRooms]),
+      });
+    }
+
+    return Array.from(propertyMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, "id-ID"),
+    );
+  };
 
   const fetchProperties = async ({
     mode = "all",
@@ -1444,7 +1714,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       });
     } catch (err) {
       setPropertiesError(
-        err instanceof Error ? err.message : "Gagal memuat properti.",
+        err instanceof Error ? err.message : tenantCopy.failedLoadProperty,
       );
       setProperties([]);
       setPropertyReportMeta((prev) => ({
@@ -1463,8 +1733,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     try {
       setCategoriesLoading(true);
       setCategoriesError(null);
-      const data = await fetchJson<CatalogCategory[]>("/catalog/categories?limit=50");
-      setCatalogCategories(data);
+      const response = await fetchJson<CatalogCategoryListResponse | CatalogCategory[]>(
+        "/catalog/categories?limit=50&page=1&sortBy=name&sortOrder=asc",
+      );
+      const rows = Array.isArray(response) ? response : response.data ?? [];
+      setCatalogCategories(rows);
     } catch (err) {
       setCategoriesError(
         err instanceof Error ? err.message : "Gagal memuat kategori properti.",
@@ -1547,11 +1820,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
   const loadAvailability = async () => {
     if (!selectedRoomId) {
-      setAvailabilityError("Pilih kamar terlebih dahulu.");
+      setAvailabilityError(tenantCopy.selectRoomFirst);
       return;
     }
     if (!availabilityQuery.startDate || !availabilityQuery.endDate) {
-      setAvailabilityError("Tanggal mulai dan akhir wajib diisi.");
+      setAvailabilityError(tenantCopy.fillDateRange);
       return;
     }
 
@@ -1572,7 +1845,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     } catch (err) {
       setAvailabilityData(null);
       setAvailabilityError(
-        err instanceof Error ? err.message : "Gagal memuat kalender.",
+        err instanceof Error ? err.message : tenantCopy.failedLoadCalendar,
       );
     } finally {
       setAvailabilityLoading(false);
@@ -1598,7 +1871,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       setRateRules(data);
     } catch (err) {
       setRateRulesError(
-        err instanceof Error ? err.message : "Gagal memuat aturan harga.",
+        err instanceof Error ? err.message : tenantCopy.failedLoadRateRule,
       );
       setRateRules([]);
     } finally {
@@ -1631,7 +1904,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
   const handleConfirmRoomAction = async () => {
     if (!selectedRoomId || !roomActionConfirm) {
-      setRoomActionError("Aksi kamar belum siap dikonfirmasi.");
+      setRoomActionError(tenantCopy.roomActionNotReady);
       return;
     }
 
@@ -1652,7 +1925,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       setRoomActionError(
         err instanceof Error
           ? normalizeTenantActionError(err.message)
-          : "Gagal menerapkan perubahan kamar.",
+          : tenantCopy.applyRoomFailed,
       );
     } finally {
       setRoomActionLoading(false);
@@ -1666,7 +1939,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
   const handleRoomActionApply = async () => {
     if (!selectedRoomId) {
-      setRoomActionError("Pilih kamar terlebih dahulu.");
+      setRoomActionError(tenantCopy.selectRoomFirst);
       return;
     }
     if (selectedCalendarDates.length === 0) {
@@ -1771,7 +2044,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       setRoomActionError(
         err instanceof Error
           ? normalizeTenantActionError(err.message)
-          : "Gagal menerapkan perubahan kamar.",
+          : tenantCopy.applyRoomFailed,
       );
     } finally {
       setRoomActionLoading(false);
@@ -1780,7 +2053,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
   const applyRoomSidebarChanges = () => {
     if (!selectedRoomId) {
-      setRoomActionError("Pilih kamar terlebih dahulu.");
+      setRoomActionError(tenantCopy.selectRoomFirst);
       return;
     }
     if (selectedCalendarDates.length === 0) {
@@ -2006,7 +2279,11 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
     const totalSales = filteredRows.reduce((sum, row) => {
       if (row.status === "DIBATALKAN") return sum;
-      return sum + row.total;
+      return sum + row.grossTotal;
+    }, 0);
+    const totalNetPayout = filteredRows.reduce((sum, row) => {
+      if (row.status === "DIBATALKAN") return sum;
+      return sum + row.netPayout;
     }, 0);
     const totalTransactions = filteredRows.length;
 
@@ -2045,7 +2322,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
       if (!bucket) return;
       bucket.bookings += 1;
       if (row.status !== "DIBATALKAN") {
-        bucket.sales += row.total;
+        bucket.sales += row.grossTotal;
       }
     });
 
@@ -2053,12 +2330,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     const transactionRows = [...filteredRows];
     transactionRows.sort((a, b) => {
       if (sortBy === "total") {
-        if (a.total !== b.total) return sortFactor * (a.total - b.total);
+        if (a.grossTotal !== b.grossTotal) {
+          return sortFactor * (a.grossTotal - b.grossTotal);
+        }
         return sortFactor * (toTimestamp(a.submittedAt) - toTimestamp(b.submittedAt));
       }
       const dateDiff = toTimestamp(a.submittedAt) - toTimestamp(b.submittedAt);
       if (dateDiff !== 0) return sortFactor * dateDiff;
-      return sortFactor * (a.total - b.total);
+      return sortFactor * (a.grossTotal - b.grossTotal);
     });
 
     let total = 0;
@@ -2090,6 +2369,8 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         userId: row.userId,
         user: row.user,
         status: row.status,
+        grossTotal: row.grossTotal,
+        netPayout: row.netPayout,
         total: row.total,
       }));
 
@@ -2120,13 +2401,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             transactions: 0,
             users: 0,
             totalSales: 0,
+            netPayout: 0,
             latestTransactionAt: null,
             userSet: new Set<string>(),
           };
         current.transactions += 1;
         current.userSet.add(row.userId);
         if (row.status !== "DIBATALKAN") {
-          current.totalSales += row.total;
+          current.totalSales += row.grossTotal;
+          current.netPayout += row.netPayout ?? 0;
         }
         if (toTimestamp(row.submittedAt) > toTimestamp(current.latestTransactionAt)) {
           current.latestTransactionAt = row.submittedAt;
@@ -2140,6 +2423,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         transactions: row.transactions,
         users: row.userSet.size,
         totalSales: row.totalSales,
+        netPayout: row.netPayout,
         latestTransactionAt: row.latestTransactionAt,
       }));
 
@@ -2192,13 +2476,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
             transactions: 0,
             properties: 0,
             totalSales: 0,
+            netPayout: 0,
             latestTransactionAt: null,
             propertySet: new Set<string>(),
           };
         current.transactions += 1;
         current.propertySet.add(row.propertyId);
         if (row.status !== "DIBATALKAN") {
-          current.totalSales += row.total;
+          current.totalSales += row.grossTotal;
+          current.netPayout += row.netPayout ?? 0;
         }
         if (toTimestamp(row.submittedAt) > toTimestamp(current.latestTransactionAt)) {
           current.latestTransactionAt = row.submittedAt;
@@ -2212,6 +2498,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         transactions: row.transactions,
         properties: row.propertySet.size,
         totalSales: row.totalSales,
+        netPayout: row.netPayout,
         latestTransactionAt: row.latestTransactionAt,
       }));
 
@@ -2258,6 +2545,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
     setSalesUserRows(pagedUserRows);
     setSalesSummary({
       totalSales,
+      totalNetPayout,
       totalTransactions,
       avgPerTransaction:
         totalTransactions > 0 ? Math.round(totalSales / totalTransactions) : 0,
@@ -2307,7 +2595,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         `/bookings/tenant/reports/sales?${query.toString()}`,
       );
 
-      setSalesSummary(response.summary ?? defaultSalesSummary);
+      setSalesSummary({
+        ...defaultSalesSummary,
+        ...(response.summary ?? {}),
+      });
       setSalesTrendData(Array.isArray(response.trend) ? response.trend : []);
       setSalesMeta({
         ...defaultSalesMeta,
@@ -2319,11 +2610,21 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
         setSalesPropertyRows([]);
         setSalesUserRows([]);
       } else if (salesView === "property") {
-        setSalesPropertyRows((response.data ?? []) as SalesPropertyRow[]);
+        setSalesPropertyRows(
+          ((response.data ?? []) as SalesPropertyRow[]).map((row) => ({
+            ...row,
+            netPayout: Number.isFinite(row.netPayout) ? row.netPayout : 0,
+          })),
+        );
         setSalesTransactionRows([]);
         setSalesUserRows([]);
       } else {
-        setSalesUserRows((response.data ?? []) as SalesUserRow[]);
+        setSalesUserRows(
+          ((response.data ?? []) as SalesUserRow[]).map((row) => ({
+            ...row,
+            netPayout: Number.isFinite(row.netPayout) ? row.netPayout : 0,
+          })),
+        );
         setSalesTransactionRows([]);
         setSalesPropertyRows([]);
       }
@@ -2635,7 +2936,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
           setCategoryCreateError(errorMessage ?? "Gagal menghapus kategori.");
           break;
         case "apply-room-sidebar":
-          setRoomActionError(errorMessage ?? "Gagal menerapkan perubahan kamar.");
+          setRoomActionError(errorMessage ?? tenantCopy.applyRoomFailed);
           break;
         case "delete-rate-rule":
           setRateRulesError(errorMessage ?? "Gagal menghapus aturan harga.");
@@ -2709,19 +3010,19 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
   }, [active, propertyReportPage, propertyReportLimit, reportTab]);
 
   useEffect(() => {
-    if (properties.length === 0) {
+    if (availabilityProperties.length === 0) {
       setSelectedPropertyId("");
       setSelectedRoomId("");
       return;
     }
 
-    const propertyExists = properties.some(
+    const propertyExists = availabilityProperties.some(
       (property) => property.id === selectedPropertyId,
     );
     if (!propertyExists) {
-      setSelectedPropertyId(properties[0].id);
+      setSelectedPropertyId(availabilityProperties[0].id);
     }
-  }, [properties, selectedPropertyId]);
+  }, [availabilityProperties, selectedPropertyId]);
 
   useEffect(() => {
     if (!selectedProperty) return;
@@ -3580,12 +3881,18 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 {salesError ? <p className="mt-2 text-xs text-rose-600">{salesError}</p> : null}
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-4 lg:grid-cols-4">
                 {[
                   {
-                    label: "Total Penjualan",
+                    label: "Gross Sales",
                     value: formatCurrency(salesSummary.totalSales),
                     change: `${salesSummary.totalTransactions} transaksi`,
+                    positive: true,
+                  },
+                  {
+                    label: "Net Payout",
+                    value: formatCurrency(salesSummary.totalNetPayout ?? 0),
+                    change: "Setelah fee tenant 5%",
                     positive: true,
                   },
                   {
@@ -3600,7 +3907,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     positive: true,
                   },
                   {
-                    label: "Rata-rata Nilai Transaksi",
+                    label: "Rata-rata Gross / Transaksi",
                     value: formatCurrency(salesSummary.avgPerTransaction),
                     change: "Tidak termasuk transaksi dibatalkan",
                     positive: true,
@@ -3691,6 +3998,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           <th className="px-4 py-3">Properti</th>
                           <th className="px-4 py-3">Pengguna</th>
                           <th className="px-4 py-3 text-right">Total Penjualan</th>
+                          <th className="px-4 py-3 text-right">Net Payout</th>
                           <th className="px-4 py-3">Status</th>
                         </tr>
                       </thead>
@@ -3698,7 +4006,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         {salesTransactionRows.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={6}
+                              colSpan={7}
                               className="px-4 py-6 text-center text-sm text-slate-500"
                             >
                               Tidak ada data transaksi pada filter ini.
@@ -3718,6 +4026,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               <td className="px-4 py-3 text-right font-semibold text-slate-900">
                                 {formatCurrency(order.total)}
                               </td>
+                              <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                                {formatCurrency(order.netPayout ?? order.total)}
+                              </td>
                               <td className="px-4 py-3 text-slate-600">
                                 {formatBookingStatus(order.status)}
                               </td>
@@ -3736,6 +4047,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           <th className="px-4 py-3 text-right">Transaksi</th>
                           <th className="px-4 py-3 text-right">Pengguna</th>
                           <th className="px-4 py-3 text-right">Total Penjualan</th>
+                          <th className="px-4 py-3 text-right">Net Payout</th>
                           <th className="px-4 py-3">Transaksi Terakhir</th>
                         </tr>
                       </thead>
@@ -3743,7 +4055,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         {salesPropertyRows.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={5}
+                              colSpan={6}
                               className="px-4 py-6 text-center text-sm text-slate-500"
                             >
                               Tidak ada data properti pada filter ini.
@@ -3764,6 +4076,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               <td className="px-4 py-3 text-right font-semibold text-slate-900">
                                 {formatCurrency(row.totalSales)}
                               </td>
+                              <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                                {formatCurrency(row.netPayout ?? row.totalSales)}
+                              </td>
                               <td className="px-4 py-3 text-slate-600">
                                 {formatDateTime(row.latestTransactionAt)}
                               </td>
@@ -3782,6 +4097,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           <th className="px-4 py-3 text-right">Transaksi</th>
                           <th className="px-4 py-3 text-right">Properti</th>
                           <th className="px-4 py-3 text-right">Total Penjualan</th>
+                          <th className="px-4 py-3 text-right">Net Payout</th>
                           <th className="px-4 py-3">Transaksi Terakhir</th>
                         </tr>
                       </thead>
@@ -3789,7 +4105,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         {salesUserRows.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={5}
+                              colSpan={6}
                               className="px-4 py-6 text-center text-sm text-slate-500"
                             >
                               Tidak ada data user pada filter ini.
@@ -3809,6 +4125,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               </td>
                               <td className="px-4 py-3 text-right font-semibold text-slate-900">
                                 {formatCurrency(row.totalSales)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                                {formatCurrency(row.netPayout ?? row.totalSales)}
                               </td>
                               <td className="px-4 py-3 text-slate-600">
                                 {formatDateTime(row.latestTransactionAt)}
@@ -3874,10 +4193,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="font-display text-3xl text-slate-900">
-                    Laporan Properti
+                    {tenantCopy.propertyReportTitle}
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Monitor ketersediaan properti dan kamar dalam bentuk kalender.
+                    {tenantCopy.propertyReportSubtitle}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -3891,7 +4210,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       <path d="M20 12a8 8 0 0 1-14.5 4.5M4 12A8 8 0 0 1 18.5 7.5" strokeWidth="1.8" strokeLinecap="round" />
                       <path d="M4 16v-3.5h3.5M20 8v3.5h-3.5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    {availabilityLoading ? "Memuat..." : "Muat Ulang Kalender"}
+                    {availabilityLoading ? tenantCopy.loadingShort : tenantCopy.reloadCalendar}
                   </button>
                 </div>
               </div>
@@ -3903,14 +4222,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     onClick={() => setReportTab("sales")}
                     className="border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 transition hover:text-cyan-800"
                   >
-                    Laporan Penjualan
+                    {tenantCopy.salesReportTab}
                   </button>
                   <button
                     type="button"
                     onClick={() => setReportTab("property")}
                     className="border-b-2 border-cyan-800 pb-3 text-sm font-medium text-cyan-900"
                   >
-                    Ketersediaan Properti
+                    {tenantCopy.propertyAvailabilityTab}
                   </button>
                 </div>
               </div>
@@ -3919,7 +4238,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Properti
+                      {tenantCopy.property}
                     </span>
                     <select
                       value={selectedPropertyId}
@@ -3927,8 +4246,8 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                       disabled={propertiesLoading}
                     >
-                      <option value="">Pilih properti</option>
-                      {properties.map((property) => (
+                      <option value="">{tenantCopy.selectProperty}</option>
+                      {availabilityProperties.map((property) => (
                         <option key={property.id} value={property.id}>
                           {property.name}
                         </option>
@@ -3938,7 +4257,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Kamar
+                      {tenantCopy.room}
                     </span>
                     <select
                       value={selectedRoomId}
@@ -3946,7 +4265,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                       disabled={!selectedProperty}
                     >
-                      <option value="">Pilih kamar</option>
+                      <option value="">{tenantCopy.selectRoom}</option>
                       {availableRooms.map((room) => (
                         <option key={room.id} value={room.id}>
                           {room.name}
@@ -3957,7 +4276,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Tanggal Mulai
+                      {tenantCopy.startDate}
                     </span>
                     <input
                       type="date"
@@ -3974,7 +4293,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                   <label className="text-xs text-slate-500">
                     <span className="mb-1 block font-semibold uppercase tracking-[0.16em]">
-                      Tanggal Akhir
+                      {tenantCopy.endDate}
                     </span>
                     <input
                       type="date"
@@ -4011,7 +4330,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       }}
                       className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900"
                     >
-                      Bulan Ini
+                      {tenantCopy.currentMonth}
                     </button>
                   </div>
                 </div>
@@ -4019,17 +4338,17 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                   <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                     <span className="font-semibold text-slate-900">
-                      {selectedProperty?.name ?? "Belum pilih properti"}
+                      {selectedProperty?.name ?? tenantCopy.selectedPropertyFallback}
                     </span>
                     {" · "}
-                    <span>{selectedRoom?.name ?? "Belum memilih kamar"}</span>
+                    <span>{selectedRoom?.name ?? tenantCopy.selectedRoomFallback}</span>
                   </div>
                   <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1">
                     <button
                       type="button"
                       onClick={() => shiftAvailabilityMonth(-1)}
                       className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
-                      aria-label="Bulan sebelumnya"
+                      aria-label={tenantCopy.prevMonthAria}
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                         <path d="M15 6L9 12L15 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -4042,7 +4361,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       type="button"
                       onClick={() => shiftAvailabilityMonth(1)}
                       className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
-                      aria-label="Bulan berikutnya"
+                      aria-label={tenantCopy.nextMonthAria}
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                         <path d="M9 6L15 12L9 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -4060,12 +4379,13 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                   <p className="text-xs text-slate-600">
-                    Halaman properti {propertyReportMeta.page} dari{" "}
-                    {propertyReportMeta.totalPages} ({propertyReportMeta.total} properti)
+                    {tenantCopy.propertyPageLabel} {propertyReportMeta.page} /{" "}
+                    {propertyReportMeta.totalPages} ({propertyReportMeta.total}{" "}
+                    {tenantCopy.propertiesNoun})
                   </p>
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-medium text-slate-500">
-                      Baris
+                      {tenantCopy.rows}
                       <select
                         value={propertyReportLimit}
                         onChange={(event) =>
@@ -4086,7 +4406,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       disabled={!propertyReportMeta.hasPrev || propertiesLoading}
                       className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
                     >
-                      Sebelumnya
+                      {tenantCopy.previous}
                     </button>
                     <button
                       type="button"
@@ -4098,7 +4418,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       disabled={!propertyReportMeta.hasNext || propertiesLoading}
                       className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-900 disabled:opacity-50"
                     >
-                      Selanjutnya
+                      {tenantCopy.next}
                     </button>
                   </div>
                 </div>
@@ -4106,40 +4426,42 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
 
                 <div className="surface-panel rounded-xl p-6">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-lg font-bold text-slate-900">Kalender Ketersediaan</h3>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {tenantCopy.availabilityCalendar}
+                  </h3>
                   <div className="flex items-center gap-4 text-sm text-slate-600">
                     <span className="inline-flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-emerald-500" />
-                      Tersedia
+                      {tenantCopy.available}
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-rose-500" />
-                      Terpesan
+                      {tenantCopy.booked}
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-slate-400" />
-                      Perawatan
+                      {tenantCopy.maintenance}
                     </span>
                   </div>
                 </div>
 
                 <div className="mb-4 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                    Tersedia:{" "}
+                    {tenantCopy.available}:{" "}
                     <span className="font-semibold">
-                      {availabilityStatusSummary.available} hari
+                      {availabilityStatusSummary.available} {tenantCopy.dayLabel}
                     </span>
                   </div>
                   <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                    Terpesan:{" "}
+                    {tenantCopy.booked}:{" "}
                     <span className="font-semibold">
-                      {availabilityStatusSummary.booked} hari
+                      {availabilityStatusSummary.booked} {tenantCopy.dayLabel}
                     </span>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700">
-                    Perawatan:{" "}
+                    {tenantCopy.maintenance}:{" "}
                     <span className="font-semibold">
-                      {availabilityStatusSummary.maintenance} hari
+                      {availabilityStatusSummary.maintenance} {tenantCopy.dayLabel}
                     </span>
                   </div>
                 </div>
@@ -4306,6 +4628,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         <th className="px-6 py-4">Properti</th>
                         <th className="px-6 py-4">Check-in</th>
                         <th className="px-6 py-4">Total</th>
+                        <th className="px-6 py-4">Net Payout</th>
                         <th className="px-6 py-4">Status</th>
                         <th className="px-6 py-4 text-right">Aksi</th>
                       </tr>
@@ -4314,7 +4637,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       {filteredTransactionRows.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={8}
                             className="px-6 py-6 text-center text-sm text-slate-500"
                           >
                             Tidak ada transaksi untuk filter ini.
@@ -4345,6 +4668,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               </td>
                               <td className="px-6 py-4 font-semibold text-slate-900">
                                 {formatCurrency(order.total)}
+                              </td>
+                              <td className="px-6 py-4">
+                                <p className="font-semibold text-slate-900">
+                                  {formatCurrency(order.netPayout)}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  Fee tenant {formatCurrency(order.tenantFee)}
+                                </p>
                               </td>
                               <td className="px-6 py-4">
                                 <span
@@ -4486,6 +4817,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               <p className="font-semibold text-slate-900">
                                 {formatCurrency(order.total)}
                               </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Net payout {formatCurrency(order.netPayout)}
+                              </p>
+                              {order.breakfastSelected ? (
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Sarapan {order.breakfastPax} pax ·{" "}
+                                  {formatCurrency(order.breakfastTotal)}
+                                </p>
+                              ) : null}
                             </div>
                             <div className="flex items-center gap-2">
                               {canReview ? (
@@ -4976,19 +5316,27 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         <p className="text-base font-medium text-slate-700">
                           {property.rooms.length} Kamar
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPropertyId(property.id);
-                            if (property.rooms[0]) {
-                              setSelectedRoomId(property.rooms[0].id);
-                            }
-                            setActive("room-management");
-                          }}
-                          className={`rounded-xl px-4 py-2 text-sm font-medium transition hover:bg-cyan-100 ${BUTTON_THEME.softActive}`}
-                        >
-                          Kelola Kamar
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`/tenant-property?edit=${encodeURIComponent(property.id)}`}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-900"
+                          >
+                            Edit Properti
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPropertyId(property.id);
+                              if (property.rooms[0]) {
+                                setSelectedRoomId(property.rooms[0].id);
+                              }
+                              setActive("room-management");
+                            }}
+                            className={`rounded-xl px-4 py-2 text-sm font-medium transition hover:bg-cyan-100 ${BUTTON_THEME.softActive}`}
+                          >
+                            Kelola Kamar
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -5011,18 +5359,20 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     type="button"
                     onClick={() => setActive("property-management")}
                     className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-                    aria-label="Kembali ke properti"
+                    aria-label={tenantCopy.backToPropertyAria}
                   >
                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor">
                       <path d="M15 6L9 12L15 18" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
                   <div>
-                    <h2 className="font-display text-3xl text-slate-900">Kelola Kamar</h2>
+                    <h2 className="font-display text-3xl text-slate-900">
+                      {tenantCopy.manageRoom}
+                    </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Kelola harga untuk{" "}
+                      {tenantCopy.managePriceFor}{" "}
                       <span className="font-medium text-slate-900">
-                        {selectedProperty?.name ?? "Properti Terpilih"}
+                        {selectedProperty?.name ?? tenantCopy.selectedProperty}
                       </span>
                     </p>
                   </div>
@@ -5033,7 +5383,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     type="button"
                     onClick={() => shiftAvailabilityMonth(-1)}
                     className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
-                    aria-label="Bulan sebelumnya"
+                    aria-label={tenantCopy.prevMonthAria}
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                       <path d="M15 6L9 12L15 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -5044,7 +5394,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     type="button"
                     onClick={() => shiftAvailabilityMonth(1)}
                     className="rounded-md p-2 text-slate-500 transition hover:bg-slate-50"
-                    aria-label="Bulan berikutnya"
+                    aria-label={tenantCopy.nextMonthAria}
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                       <path d="M9 6L15 12L9 18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -5059,7 +5409,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="text-sm text-slate-600">
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-                          Properti
+                          {tenantCopy.property}
                         </span>
                         <select
                           value={selectedPropertyId}
@@ -5067,8 +5417,8 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                           disabled={propertiesLoading}
                         >
-                          <option value="">Pilih properti</option>
-                          {properties.map((property) => (
+                          <option value="">{tenantCopy.selectProperty}</option>
+                          {availabilityProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
                             </option>
@@ -5077,7 +5427,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                       </label>
                       <label className="text-sm text-slate-600">
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-                          Kamar
+                          {tenantCopy.room}
                         </span>
                         <select
                           value={selectedRoomId}
@@ -5085,7 +5435,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                           className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                           disabled={!selectedProperty}
                         >
-                          <option value="">Pilih kamar</option>
+                          <option value="">{tenantCopy.selectRoom}</option>
                           {availableRooms.map((room) => (
                             <option key={room.id} value={room.id}>
                               {room.name}
@@ -5103,7 +5453,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   </div>
 
                   <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
-                    {["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"].map((day) => (
+                    {roomWeekdayLabels.map((day) => (
                       <div
                         key={day}
                         className="py-3 text-center text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
@@ -5114,7 +5464,9 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   </div>
 
                   {availabilityLoading ? (
-                    <div className="px-4 py-6 text-sm text-slate-500">Memuat kalender...</div>
+                    <div className="px-4 py-6 text-sm text-slate-500">
+                      {tenantCopy.loadingCalendar}
+                    </div>
                   ) : null}
 
                   <div className="grid grid-cols-7">
@@ -5164,7 +5516,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             </span>
                             {isPeak ? (
                               <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
-                                Puncak
+                                {tenantCopy.peak}
                               </span>
                             ) : null}
                           </div>
@@ -5188,10 +5540,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                               }`}
                             >
                               {status === "Available"
-                                ? "Tersedia"
+                                ? tenantCopy.available
                                 : status === "Booked"
-                                  ? "Terpesan"
-                                  : "Ditutup"}
+                                  ? tenantCopy.booked
+                                  : tenantCopy.closed}
                             </span>
                           </div>
                         </button>
@@ -5207,15 +5559,17 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         <span className="font-semibold text-slate-900">
                           {selectedCalendarDates.length}
                         </span>{" "}
-                        tanggal dipilih.
+                        {tenantCopy.datesSelected}
                       </span>
                     ) : (
-                      <span>Pilih tanggal pada kalender untuk menerapkan perubahan.</span>
+                      <span>{tenantCopy.selectDateHint}</span>
                     )}
                   </div>
 
                   <div className="mt-6">
-                    <p className="mb-3 text-sm font-semibold text-slate-700">Ketersediaan</p>
+                    <p className="mb-3 text-sm font-semibold text-slate-700">
+                      {tenantCopy.availability}
+                    </p>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -5226,7 +5580,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        Tersedia
+                        {tenantCopy.available}
                       </button>
                       <button
                         type="button"
@@ -5237,13 +5591,15 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        Ditutup
+                        {tenantCopy.closed}
                       </button>
                     </div>
                   </div>
 
                   <div className="mt-6">
-                    <p className="mb-3 text-sm font-semibold text-slate-700">Penyesuaian Harga</p>
+                    <p className="mb-3 text-sm font-semibold text-slate-700">
+                      {tenantCopy.priceAdjustment}
+                    </p>
                     <div className="flex rounded-xl bg-slate-100 p-1">
                       <button
                         type="button"
@@ -5254,7 +5610,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "text-slate-500"
                         }`}
                       >
-                        Nominal (Rp)
+                        {tenantCopy.nominalLabel}
                       </button>
                       <button
                         type="button"
@@ -5265,7 +5621,7 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                             : "text-slate-500"
                         }`}
                       >
-                        Persentase (%)
+                        {tenantCopy.percentageLabel}
                       </button>
                     </div>
 
@@ -5277,12 +5633,16 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                         type="number"
                         value={roomAdjustmentValue}
                         onChange={(event) => setRoomAdjustmentValue(event.target.value)}
-                        placeholder={roomAdjustmentType === "NOMINAL" ? "Contoh: 200000" : "Contoh: 10"}
+                        placeholder={
+                          roomAdjustmentType === "NOMINAL"
+                            ? tenantCopy.exampleNominal
+                            : tenantCopy.examplePercent
+                        }
                         className={`h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-700 ${INPUT_THEME.focus}`}
                       />
                     </div>
                     <p className="mt-3 text-sm text-slate-500">
-                      Harga dasar saat ini{" "}
+                      {tenantCopy.basePriceNow}{" "}
                       <span className="font-semibold text-slate-700">
                         {formatCurrency(roomBasePrice)}
                       </span>
@@ -5304,14 +5664,14 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                     disabled={selectedCalendarDates.length === 0 || roomActionLoading}
                     className={`mt-8 flex h-11 w-full items-center justify-center rounded-xl px-4 text-sm font-medium ${BUTTON_THEME.solid} ${BUTTON_THEME.solidDisabled}`}
                   >
-                    {roomActionLoading ? "Menerapkan..." : "Terapkan Perubahan"}
+                    {roomActionLoading ? tenantCopy.applying : tenantCopy.applyChanges}
                   </button>
                 </div>
               </div>
 
               <details className="surface-panel rounded-xl p-4">
                 <summary className="cursor-pointer text-sm font-semibold text-slate-900">
-                  Riwayat penyesuaian harga
+                  {tenantCopy.priceAdjustmentHistory}
                 </summary>
                 {rateRulesError ? (
                   <p className="mt-3 text-xs text-rose-600">{rateRulesError}</p>
@@ -5320,10 +5680,10 @@ export default function TenantDashboardClient({ me }: { me: DashboardUser }) {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-400">
                       <tr>
-                        <th className="px-4 py-3">Nama</th>
-                        <th className="px-4 py-3">Tanggal</th>
-                        <th className="px-4 py-3">Penyesuaian</th>
-                        <th className="px-4 py-3 text-right">Aksi</th>
+                        <th className="px-4 py-3">{tenantCopy.name}</th>
+                        <th className="px-4 py-3">{tenantCopy.date}</th>
+                        <th className="px-4 py-3">{tenantCopy.adjustment}</th>
+                        <th className="px-4 py-3 text-right">{tenantCopy.action}</th>
                       </tr>
                     </thead>
                     <tbody>

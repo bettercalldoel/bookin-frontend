@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { apiFetch, apiFetchWithHeaders } from "@/lib/api";
 import { isValidEmail } from "@/lib/validation";
 import { extractTokenFromAuthHeader, setAuthToken } from "@/lib/auth-client";
-import GoogleSignInButton from "@/components/google-signin-button";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
+import { getLoginCopy, type LoginCopy } from "@/components/login-form.copy";
+import LoginFormView from "@/components/login-form.view";
 
 type AccountType = "USER" | "TENANT";
 
@@ -17,8 +19,67 @@ type LoginFormProps = {
   accountType: AccountType;
 };
 
+type SetString = (value: string) => void;
+type SetBoolean = (value: boolean) => void;
+
+const resolveDashboardPath = (accountType: AccountType) =>
+  accountType === "TENANT" ? "/tenant-dashboard" : "/profile";
+
+const isUnverifiedMessage = (message: string) =>
+  message.toLowerCase().includes("belum terverifikasi");
+
+const validateLoginInput = (email: string, password: string, copy: LoginCopy) => {
+  if (!isValidEmail(email)) return copy.invalidEmail;
+  if (password.length < 8) return copy.passwordMin;
+  return "";
+};
+
+const requestLogin = (email: string, password: string) =>
+  apiFetchWithHeaders<LoginResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+
+const assertMatchingAccountType = (
+  actualType: AccountType,
+  expectedType: AccountType,
+  isTenantLogin: boolean,
+  copy: LoginCopy,
+) => {
+  if (actualType === expectedType) return;
+  throw new Error(isTenantLogin ? copy.notTenant : copy.isTenant);
+};
+
+const saveTokenFromHeaders = (headers: Headers, copy: LoginCopy) => {
+  const token = extractTokenFromAuthHeader(headers.get("authorization"));
+  if (!token) throw new Error(copy.tokenMissing);
+  setAuthToken(token);
+};
+
+const applyLoginError = (
+  err: unknown,
+  copy: LoginCopy,
+  setError: SetString,
+  setInfo: SetString,
+  setShowResend: SetBoolean,
+) => {
+  const message = err instanceof Error ? err.message : copy.loginFailed;
+  setError(message);
+  if (!isUnverifiedMessage(message)) return;
+  setInfo(copy.verifyFirst);
+  setShowResend(true);
+};
+
+const requestResend = (email: string) =>
+  apiFetch<{ message: string }>("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+
 export default function LoginForm({ accountType }: LoginFormProps) {
   const router = useRouter();
+  const locale = useAppLocaleValue();
+  const copy = getLoginCopy(locale);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -27,85 +88,58 @@ export default function LoginForm({ accountType }: LoginFormProps) {
   const [showResend, setShowResend] = useState(false);
 
   const isTenantLogin = accountType === "TENANT";
+  const pageTitle = isTenantLogin ? copy.tenantTitle : copy.userTitle;
+  const pageSubtitle = isTenantLogin
+    ? copy.tenantSubtitle
+    : copy.userSubtitle;
+  const submitLabel = copy.submit;
 
-  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const clearFeedback = () => {
     setError("");
     setInfo("");
     setShowResend(false);
+  };
 
+  const performLogin = async (trimmedEmail: string) => {
+    const { data, headers } = await requestLogin(trimmedEmail, password);
+    assertMatchingAccountType(data.account.type, accountType, isTenantLogin, copy);
+    saveTokenFromHeaders(headers, copy);
+    router.push(resolveDashboardPath(data.account.type));
+  };
+
+  const handleLogin = async function (event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    clearFeedback();
     const trimmedEmail = email.trim();
-    if (!isValidEmail(trimmedEmail)) {
-      setError("Format email tidak valid.");
+    const validationError = validateLoginInput(trimmedEmail, password, copy);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    if (password.length < 8) {
-      setError("Password minimal 8 karakter.");
-      return;
-    }
-
     setIsLoading(true);
-
     try {
-      const { data, headers } = await apiFetchWithHeaders<LoginResponse>(
-        "/auth/login",
-        {
-          method: "POST",
-          body: JSON.stringify({ email: trimmedEmail, password }),
-        },
-      );
-
-      if (data.account.type !== accountType) {
-        throw new Error(
-          isTenantLogin
-            ? "Akun ini bukan akun tenant. Gunakan halaman masuk pengguna."
-            : "Akun ini tenant. Gunakan halaman masuk Tenant.",
-        );
-      }
-
-      const token = extractTokenFromAuthHeader(headers.get("authorization"));
-      if (!token) {
-        throw new Error("Token tidak ditemukan.");
-      }
-
-      setAuthToken(token);
-      if (data.account.type === "TENANT") {
-        router.push("/tenant-dashboard");
-      } else {
-        router.push("/profile");
-      }
+      await performLogin(trimmedEmail);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal masuk.";
-      setError(message);
-      if (message.toLowerCase().includes("belum terverifikasi")) {
-        setInfo("Silakan verifikasi email terlebih dahulu.");
-        setShowResend(true);
-      }
+      applyLoginError(err, copy, setError, setInfo, setShowResend);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResend = async () => {
+  const handleResend = async function () {
     const trimmedEmail = email.trim();
     if (!isValidEmail(trimmedEmail)) {
-      setError("Masukkan email yang valid terlebih dahulu.");
+      setError(copy.validEmailFirst);
       return;
     }
     setError("");
     setInfo("");
     setIsLoading(true);
     try {
-      const result = await apiFetch<{ message: string }>(
-        "/auth/resend-verification",
-        {
-          method: "POST",
-          body: JSON.stringify({ email: trimmedEmail }),
-        },
-      );
+      const result = await requestResend(trimmedEmail);
       setInfo(result.message);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal mengirim ulang.";
+      const message = err instanceof Error ? err.message : copy.resendFailed;
       setError(message);
     } finally {
       setIsLoading(false);
@@ -113,157 +147,23 @@ export default function LoginForm({ accountType }: LoginFormProps) {
   };
 
   return (
-    <div className="relative min-h-screen bg-slate-50 py-20 text-slate-900">
-      <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/70 blur-3xl" />
-      <div className="pointer-events-none absolute left-0 top-1/2 h-80 w-80 -translate-y-1/2 rounded-full bg-sky-200/70 blur-3xl" />
-      <div className="pointer-events-none absolute inset-0 bg-grid-slate" />
-      <div className="relative z-10 flex h-full items-center justify-center px-6">
-        <div className="flex h-full w-full max-w-md flex-col items-center justify-center rounded-[28px] border border-slate-200/80 bg-white/90 shadow-2xl shadow-slate-200/70 backdrop-blur">
-          <div className="flex h-full w-full flex-col justify-center gap-4 p-6 sm:p-8">
-            <div className="inline-block px-2 py-2.5 sm:px-4">
-              <form className="flex flex-col gap-4 pb-4" onSubmit={handleLogin}>
-                <h1 className="mb-2 text-2xl font-bold text-slate-900">
-                  {isTenantLogin ? "Masuk Tenant" : "Masuk"}
-                </h1>
-                <p className="text-sm text-slate-500">
-                  {isTenantLogin
-                    ? "Masuk untuk mengelola properti dan transaksi."
-                    : "Masuk untuk melanjutkan pemesanan."}
-                </p>
-                <div>
-                  <div className="mb-2">
-                    <label className="text-sm font-medium text-slate-700" htmlFor="email">
-                      Email
-                    </label>
-                  </div>
-                  <div className="flex w-full rounded-lg pt-1">
-                    <div className="relative w-full">
-                      <input
-                        id="email"
-                        type="email"
-                        placeholder="email@example.com"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-2">
-                    <label className="text-sm font-medium text-slate-700" htmlFor="password">
-                      Password
-                    </label>
-                  </div>
-                  <div className="flex w-full rounded-lg pt-1">
-                    <div className="relative w-full">
-                      <input
-                        id="password"
-                        type="password"
-                        placeholder="Masukkan password"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <p className="mt-2 text-sm text-sky-600 hover:text-sky-700">
-                    <a href="/forgot-password">Lupa password?</a>
-                  </p>
-                </div>
-                {error ? (
-                  <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
-                    {error}
-                  </p>
-                ) : null}
-                {info ? (
-                  <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
-                    {info}
-                  </p>
-                ) : null}
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-                  >
-                    <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
-                      {isLoading ? "Memproses..." : "Masuk"}
-                    </span>
-                  </button>
-                  <GoogleSignInButton accountType={accountType} />
-                  {showResend ? (
-                    <button
-                      type="button"
-                      onClick={handleResend}
-                      disabled={isLoading}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-                    >
-                      {isLoading ? "Mengirim..." : "Kirim ulang email verifikasi"}
-                    </button>
-                  ) : null}
-                </div>
-              </form>
-              <div className="min-w-[270px] space-y-3 text-center text-sm text-slate-600">
-                {isTenantLogin ? (
-                  <>
-                    <div>
-                      Belum punya akun Tenant?{" "}
-                      <a
-                        className="text-sky-600 underline hover:text-sky-700"
-                        href="/tenant-register"
-                      >
-                        Daftar Tenant
-                      </a>
-                    </div>
-                    <div>
-                      Masuk sebagai pengguna?{" "}
-                      <a
-                        className="text-sky-600 underline hover:text-sky-700"
-                        href="/login"
-                      >
-                        Masuk Pengguna
-                      </a>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      Belum punya akun?{" "}
-                      <a
-                        className="text-sky-600 underline hover:text-sky-700"
-                        href="/register"
-                      >
-                        Daftar di sini
-                      </a>
-                    </div>
-                    <div>
-                      Ingin menjadi tenant?{" "}
-                      <a
-                        className="text-sky-600 underline hover:text-sky-700"
-                        href="/tenant-register"
-                      >
-                        Daftar Tenant
-                      </a>
-                    </div>
-                    <div>
-                      Sudah punya akun Tenant?{" "}
-                      <a
-                        className="text-sky-600 underline hover:text-sky-700"
-                        href="/tenant-login"
-                      >
-                        Masuk Tenant
-                      </a>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <LoginFormView
+      accountType={accountType}
+      isTenantLogin={isTenantLogin}
+      copy={copy}
+      pageTitle={pageTitle}
+      pageSubtitle={pageSubtitle}
+      submitLabel={submitLabel}
+      email={email}
+      password={password}
+      isLoading={isLoading}
+      error={error}
+      info={info}
+      showResend={showResend}
+      onEmailChange={setEmail}
+      onPasswordChange={setPassword}
+      onLogin={handleLogin}
+      onResend={handleResend}
+    />
   );
 }

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
 import { formatDateDDMMYYYY } from "@/lib/date-format";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
+import type { AppLocale } from "@/lib/app-locale";
 
 /* ======================
  * Types (ERD-aligned)
@@ -89,32 +91,125 @@ type BookingOptionListResponse = {
   };
 };
 
-const formatIDR = (value: string | number) => {
+const BOOKING_COPY = {
+  id: {
+    failedLoadBooking: "Gagal memuat pesanan.",
+    failedLoadProperty: "Gagal memuat daftar properti.",
+    incompleteForm: "Lengkapi data pemesanan terlebih dahulu.",
+    previewFailed: "Pratinjau gagal.",
+    createFailed: "Terjadi kesalahan saat membuat pemesanan.",
+    createdSuccess: "Pemesanan berhasil dibuat.",
+    createFailedFallback: "Gagal membuat pemesanan",
+    pageTitle: "Pemesanan",
+    createTitle: "Buat Pemesanan",
+    property: "Properti",
+    selectProperty: "Pilih properti",
+    loadingPropertyList: "Memuat daftar properti...",
+    roomType: "Tipe Kamar",
+    selectRoom: "Pilih kamar",
+    checkIn: "Check-in",
+    checkOut: "Check-out",
+    guests: "Tamu",
+    rooms: "Kamar",
+    previewPrice: "Pratinjau Harga",
+    previewing: "Meninjau...",
+    creating: "Membuat...",
+    createBooking: "Buat Pemesanan",
+    previewTitle: "Pratinjau Harga",
+    total: "Total",
+    totalNights: "Jumlah malam",
+    basePrice: "Harga dasar",
+    adjustment: "Penyesuaian",
+    finalPrice: "Harga akhir",
+    stock: "Stok tersedia",
+    listTitle: "Daftar Pesanan Saya",
+    refreshStatus: "Muat Ulang Status",
+    refreshing: "Memuat ulang...",
+    lastSynced: "Sinkron terakhir",
+    noOrders: "Belum ada pesanan.",
+    orderNo: "No. Pesanan",
+    date: "Tanggal",
+    status: "Status",
+  },
+  en: {
+    failedLoadBooking: "Failed to load bookings.",
+    failedLoadProperty: "Failed to load properties.",
+    incompleteForm: "Please complete booking details first.",
+    previewFailed: "Preview failed.",
+    createFailed: "Something went wrong while creating booking.",
+    createdSuccess: "Booking created successfully.",
+    createFailedFallback: "Failed to create booking",
+    pageTitle: "Booking",
+    createTitle: "Create Booking",
+    property: "Property",
+    selectProperty: "Select property",
+    loadingPropertyList: "Loading properties...",
+    roomType: "Room Type",
+    selectRoom: "Select room",
+    checkIn: "Check-in",
+    checkOut: "Check-out",
+    guests: "Guests",
+    rooms: "Rooms",
+    previewPrice: "Price Preview",
+    previewing: "Previewing...",
+    creating: "Creating...",
+    createBooking: "Create Booking",
+    previewTitle: "Price Preview",
+    total: "Total",
+    totalNights: "Total nights",
+    basePrice: "Base price",
+    adjustment: "Adjustment",
+    finalPrice: "Final price",
+    stock: "Available stock",
+    listTitle: "My Booking List",
+    refreshStatus: "Refresh Status",
+    refreshing: "Refreshing...",
+    lastSynced: "Last synced",
+    noOrders: "No bookings yet.",
+    orderNo: "Order No.",
+    date: "Date",
+    status: "Status",
+  },
+} satisfies Record<AppLocale, Record<string, string>>;
+
+const formatIDR = (value: string | number, locale: AppLocale) => {
   const parsed = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(parsed)) return value;
-  return new Intl.NumberFormat("id-ID", {
+  return new Intl.NumberFormat(locale === "en" ? "en-US" : "id-ID", {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(parsed);
 };
 
-const formatDateTime = (value: string) => {
-  return formatDateDDMMYYYY(value, value);
+const formatDateTime = (value: string, locale: AppLocale) => {
+  const formatted = formatDateDDMMYYYY(value, value);
+  if (formatted === value) return value;
+  const [day, month, year] = formatted.split("-");
+  if (!day || !month || !year) return formatted;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  if (Number.isNaN(parsed.getTime())) return formatted;
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(parsed);
 };
 
-const formatBookingStatus = (status: BookingStatus) => {
+const formatBookingStatus = (status: BookingStatus, locale: AppLocale) => {
   switch (status) {
     case "MENUNGGU_PEMBAYARAN":
-      return "Menunggu Pembayaran";
+      return locale === "en" ? "Waiting Payment" : "Menunggu Pembayaran";
     case "MENUNGGU_KONFIRMASI_PEMBAYARAN":
-      return "Menunggu Konfirmasi Pembayaran";
+      return locale === "en"
+        ? "Waiting Payment Confirmation"
+        : "Menunggu Konfirmasi Pembayaran";
     case "DIPROSES":
-      return "Diproses";
+      return locale === "en" ? "In Process" : "Diproses";
     case "DIBATALKAN":
-      return "Dibatalkan";
+      return locale === "en" ? "Cancelled" : "Dibatalkan";
     case "SELESAI":
-      return "Selesai";
+      return locale === "en" ? "Completed" : "Selesai";
     default:
       return status;
   }
@@ -124,6 +219,8 @@ const formatBookingStatus = (status: BookingStatus) => {
  * Page Component
  * ====================== */
 export default function BookingPage() {
+  const locale = useAppLocaleValue();
+  const copy = BOOKING_COPY[locale];
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
@@ -191,7 +288,7 @@ export default function BookingPage() {
         });
         if (!res.ok) {
           const payload = await res.json().catch(() => ({}));
-          throw new Error(payload.message || "Gagal memuat pesanan.");
+          throw new Error(payload.message || copy.failedLoadBooking);
         }
         const json = (await res.json()) as BookingListResponse;
         aggregated.push(...(json.data ?? []));
@@ -203,7 +300,7 @@ export default function BookingPage() {
       setLastSyncedAt(new Date().toISOString());
     } catch (err) {
       setBookingsError(
-        err instanceof Error ? err.message : "Gagal memuat pesanan.",
+        err instanceof Error ? err.message : copy.failedLoadBooking,
       );
       setBookings([]);
     } finally {
@@ -211,7 +308,7 @@ export default function BookingPage() {
         setBookingsLoading(false);
       }
     }
-  }, []);
+  }, [copy.failedLoadBooking]);
 
   const fetchOptions = async () => {
     try {
@@ -238,7 +335,7 @@ export default function BookingPage() {
 
         if (!res.ok) {
           const payload = await res.json().catch(() => ({}));
-          throw new Error(payload.message || "Gagal memuat daftar properti.");
+          throw new Error(payload.message || copy.failedLoadProperty);
         }
 
         const json = (await res.json()) as BookingOptionListResponse;
@@ -250,7 +347,7 @@ export default function BookingPage() {
       setProperties(aggregated);
     } catch (err) {
       setOptionsError(
-        err instanceof Error ? err.message : "Gagal memuat daftar properti.",
+        err instanceof Error ? err.message : copy.failedLoadProperty,
       );
       setProperties([]);
     } finally {
@@ -282,7 +379,7 @@ export default function BookingPage() {
    * ====================== */
   const previewBooking = async () => {
     if (!isFormReady) {
-      setPreviewError("Lengkapi data pemesanan terlebih dahulu.");
+      setPreviewError(copy.incompleteForm);
       return;
     }
 
@@ -301,7 +398,7 @@ export default function BookingPage() {
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.message || "Pratinjau gagal.");
+        throw new Error(payload.message || copy.previewFailed);
       }
 
       const json = (await res.json()) as BookingPreview;
@@ -309,7 +406,7 @@ export default function BookingPage() {
     } catch (err) {
       setPreview(null);
       setPreviewError(
-        err instanceof Error ? err.message : "Pratinjau gagal.",
+        err instanceof Error ? err.message : copy.previewFailed,
       );
     } finally {
       setPreviewLoading(false);
@@ -334,13 +431,13 @@ export default function BookingPage() {
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.message || "Gagal membuat pemesanan");
+        throw new Error(payload.message || copy.createFailedFallback);
       }
 
       await fetchBookings(true);
-      alert("Pemesanan berhasil dibuat.");
+      alert(copy.createdSuccess);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Terjadi kesalahan saat membuat pemesanan.");
+      alert(err instanceof Error ? err.message : copy.createFailed);
     } finally {
       setLoading(false);
     }
@@ -356,22 +453,22 @@ export default function BookingPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1>Pemesanan</h1>
+      <h1>{copy.pageTitle}</h1>
 
       {/* ======================
        * Create Booking Form
        * ====================== */}
       <section style={{ marginBottom: 32 }}>
-        <h2>Buat Pemesanan</h2>
+        <h2>{copy.createTitle}</h2>
 
         <div style={{ display: "grid", gap: 10, maxWidth: 420 }}>
           <label style={{ display: "grid", gap: 6 }}>
-            Properti
+            {copy.property}
             <select
               value={form.propertyId}
               onChange={(e) => handlePropertyChange(e.target.value)}
             >
-              <option value="">Pilih properti</option>
+              <option value="">{copy.selectProperty}</option>
               {properties.map((property) => (
                 <option key={property.id} value={property.id}>
                   {property.name}
@@ -383,7 +480,7 @@ export default function BookingPage() {
 
           {optionsLoading && (
             <span style={{ fontSize: 12, color: "#718096" }}>
-              Memuat daftar properti...
+              {copy.loadingPropertyList}
             </span>
           )}
 
@@ -394,7 +491,7 @@ export default function BookingPage() {
           )}
 
           <label style={{ display: "grid", gap: 6 }}>
-            Tipe Kamar
+            {copy.roomType}
             <select
               value={form.roomTypeId}
               onChange={(e) =>
@@ -402,10 +499,10 @@ export default function BookingPage() {
               }
               disabled={!form.propertyId}
             >
-              <option value="">Pilih kamar</option>
+              <option value="">{copy.selectRoom}</option>
               {availableRooms.map((room) => (
                 <option key={room.id} value={room.id}>
-                  {room.name} · {formatIDR(room.basePrice)}
+                  {room.name} · {formatIDR(room.basePrice, locale)}
                 </option>
               ))}
             </select>
@@ -421,7 +518,7 @@ export default function BookingPage() {
           )}
 
           <label style={{ display: "grid", gap: 6 }}>
-            Check-in
+            {copy.checkIn}
             <input
               type="date"
               value={form.checkIn}
@@ -432,7 +529,7 @@ export default function BookingPage() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            Check-out
+            {copy.checkOut}
             <input
               type="date"
               value={form.checkOut}
@@ -443,7 +540,7 @@ export default function BookingPage() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            Tamu
+            {copy.guests}
             <input
               type="number"
               min={1}
@@ -455,7 +552,7 @@ export default function BookingPage() {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            Kamar
+            {copy.rooms}
             <input
               type="number"
               min={1}
@@ -468,10 +565,10 @@ export default function BookingPage() {
 
           <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
             <button disabled={previewLoading} onClick={previewBooking}>
-              {previewLoading ? "Meninjau..." : "Pratinjau Harga"}
+              {previewLoading ? copy.previewing : copy.previewPrice}
             </button>
             <button disabled={loading} onClick={createBooking}>
-              {loading ? "Membuat..." : "Buat Pemesanan"}
+              {loading ? copy.creating : copy.createBooking}
             </button>
           </div>
         </div>
@@ -482,12 +579,12 @@ export default function BookingPage() {
 
         {preview && (
           <div style={{ marginTop: 16 }}>
-            <h3>Pratinjau Harga</h3>
+            <h3>{copy.previewTitle}</h3>
             <p>
-              <strong>Total:</strong> {formatIDR(preview.totalAmount)}
+              <strong>{copy.total}:</strong> {formatIDR(preview.totalAmount, locale)}
             </p>
             <p>
-              <strong>Jumlah malam:</strong> {preview.totalNights}
+              <strong>{copy.totalNights}:</strong> {preview.totalNights}
             </p>
             <div style={{ marginTop: 12 }}>
               {preview.nights.map((night) => (
@@ -502,10 +599,18 @@ export default function BookingPage() {
                   <p>
                     <strong>{night.date}</strong>
                   </p>
-                  <p>Harga dasar: {formatIDR(night.basePrice)}</p>
-                  <p>Penyesuaian: {formatIDR(night.adjustment)}</p>
-                  <p>Harga akhir: {formatIDR(night.finalPrice)}</p>
-                  <p>Stok tersedia: {night.availableUnits}</p>
+                  <p>
+                    {copy.basePrice}: {formatIDR(night.basePrice, locale)}
+                  </p>
+                  <p>
+                    {copy.adjustment}: {formatIDR(night.adjustment, locale)}
+                  </p>
+                  <p>
+                    {copy.finalPrice}: {formatIDR(night.finalPrice, locale)}
+                  </p>
+                  <p>
+                    {copy.stock}: {night.availableUnits}
+                  </p>
                 </div>
               ))}
             </div>
@@ -518,19 +623,19 @@ export default function BookingPage() {
        * ====================== */}
       <section>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h2>Daftar Pesanan Saya</h2>
+          <h2>{copy.listTitle}</h2>
           <button
             type="button"
             onClick={() => fetchBookings()}
             disabled={bookingsLoading}
           >
-            {bookingsLoading ? "Memuat ulang..." : "Muat Ulang Status"}
+            {bookingsLoading ? copy.refreshing : copy.refreshStatus}
           </button>
         </div>
 
         {lastSyncedAt && (
           <p style={{ fontSize: 12, color: "#718096" }}>
-            Sinkron terakhir: {formatDateTime(lastSyncedAt)}
+            {copy.lastSynced}: {formatDateTime(lastSyncedAt, locale)}
           </p>
         )}
 
@@ -538,7 +643,7 @@ export default function BookingPage() {
           <p style={{ fontSize: 12, color: "#c53030" }}>{bookingsError}</p>
         )}
 
-        {!bookingsLoading && bookings.length === 0 && <p>Belum ada pesanan.</p>}
+        {!bookingsLoading && bookings.length === 0 && <p>{copy.noOrders}</p>}
 
         {bookings.map((b) => (
           <div
@@ -550,23 +655,23 @@ export default function BookingPage() {
             }}
           >
             <p>
-              <strong>No. Pesanan:</strong> {b.orderNo}
+              <strong>{copy.orderNo}:</strong> {b.orderNo}
             </p>
             <p>
-              <strong>Tanggal:</strong> {formatDateTime(b.checkIn)} →{" "}
-              {formatDateTime(b.checkOut)}
+              <strong>{copy.date}:</strong> {formatDateTime(b.checkIn, locale)} →{" "}
+              {formatDateTime(b.checkOut, locale)}
             </p>
             <p>
-              <strong>Tamu:</strong> {b.guests}
+              <strong>{copy.guests}:</strong> {b.guests}
             </p>
             <p>
-              <strong>Kamar:</strong> {b.rooms}
+              <strong>{copy.rooms}:</strong> {b.rooms}
             </p>
             <p>
-              <strong>Status:</strong> {formatBookingStatus(b.status)}
+              <strong>{copy.status}:</strong> {formatBookingStatus(b.status, locale)}
             </p>
             <p>
-              <strong>Total:</strong> {formatIDR(b.totalAmount)}
+              <strong>{copy.total}:</strong> {formatIDR(b.totalAmount, locale)}
             </p>
           </div>
         ))}

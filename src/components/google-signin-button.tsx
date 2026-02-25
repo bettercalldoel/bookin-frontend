@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetchWithHeaders } from "@/lib/api";
 import { extractTokenFromAuthHeader, setAuthToken } from "@/lib/auth-client";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
 
 type LoginResponse = {
   account: { type: "USER" | "TENANT" };
@@ -14,11 +15,35 @@ type GoogleSignInButtonProps = {
   className?: string;
 };
 
+const resolveRouteByAccountType = (accountType: "USER" | "TENANT") =>
+  accountType === "TENANT" ? "/tenant-dashboard" : "/profile";
+
+const requestGoogleLogin = (credential: string, accountType: "USER" | "TENANT") =>
+  apiFetchWithHeaders<LoginResponse>("/auth/login/google", {
+    method: "POST",
+    body: JSON.stringify({ idToken: credential, accountType }),
+  });
+
+const saveGoogleToken = (headers: Headers, missingTokenMessage: string) => {
+  const token = extractTokenFromAuthHeader(headers.get("authorization"));
+  if (!token) throw new Error(missingTokenMessage);
+  setAuthToken(token);
+};
+
 export default function GoogleSignInButton({
   accountType,
   className,
 }: GoogleSignInButtonProps) {
   const router = useRouter();
+  const locale = useAppLocaleValue();
+  const copy = {
+    tokenMissing: locale === "en" ? "Token not found." : "Token tidak ditemukan.",
+    failed: locale === "en" ? "Google sign-in failed." : "Gagal masuk dengan Google.",
+    processing:
+      locale === "en"
+        ? "Processing Google sign-in..."
+        : "Memproses masuk dengan Google...",
+  };
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const accountTypeRef = useRef(accountType);
   const [error, setError] = useState("");
@@ -30,37 +55,18 @@ export default function GoogleSignInButton({
     accountTypeRef.current = accountType;
   }, [accountType]);
 
-  const handleCredential = async (credential: string) => {
+  const handleCredential = async function (credential: string) {
     setError("");
     setIsLoading(true);
     try {
-      const { data, headers } = await apiFetchWithHeaders<LoginResponse>(
-        "/auth/login/google",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            idToken: credential,
-            accountType: accountTypeRef.current,
-          }),
-        },
+      const { data, headers } = await requestGoogleLogin(
+        credential,
+        accountTypeRef.current,
       );
-
-      const token = extractTokenFromAuthHeader(
-        headers.get("authorization"),
-      );
-      if (!token) {
-        throw new Error("Token tidak ditemukan.");
-      }
-
-      setAuthToken(token);
-      if (data.account.type === "TENANT") {
-        router.push("/tenant-dashboard");
-      } else {
-        router.push("/profile");
-      }
+      saveGoogleToken(headers, copy.tokenMissing);
+      router.push(resolveRouteByAccountType(data.account.type));
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Gagal masuk dengan Google.";
+      const message = err instanceof Error ? err.message : copy.failed;
       setError(message);
     } finally {
       setIsLoading(false);
@@ -89,7 +95,7 @@ export default function GoogleSignInButton({
             if (response.credential) {
               handleCredential(response.credential);
             } else {
-              setError("Gagal masuk dengan Google.");
+              setError(copy.failed);
             }
           },
         });
@@ -120,7 +126,7 @@ export default function GoogleSignInButton({
         </p>
       ) : null}
       {isLoading ? (
-        <p className="mt-2 text-xs text-slate-500">Memproses masuk dengan Google...</p>
+        <p className="mt-2 text-xs text-slate-500">{copy.processing}</p>
       ) : null}
     </div>
   );

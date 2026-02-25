@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth-client";
-import { formatDateDDMMYYYY } from "@/lib/date-format";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
+import type { AppLocale } from "@/lib/app-locale";
 
 type BookingStatus =
   | "MENUNGGU_PEMBAYARAN"
@@ -31,6 +32,15 @@ type TransactionItem = {
   guests: number;
   rooms: number;
   totalAmount: string;
+  roomSubtotal?: string;
+  subtotalAmount?: string;
+  appFeeAmount?: string;
+  taxAmount?: string;
+  breakfastSelected?: boolean;
+  breakfastPax?: number;
+  breakfastUnitPrice?: string;
+  breakfastTotal?: string;
+  currency?: string;
   status: BookingStatus;
   paymentMethod: PaymentMethod;
   xenditInvoiceUrl?: string | null;
@@ -70,10 +80,166 @@ type StaySummary = {
   nightsLabel: string;
 };
 
-const formatIDR = (value: string | number) => {
+type TransactionCopy = {
+  loginAgain: string;
+  failedLoad: string;
+  failedReview: string;
+  reviewSuccess: string;
+  ratingRange: string;
+  reviewRequired: string;
+  historyEyebrow: string;
+  historyTitle: string;
+  historySubtitle: string;
+  backHome: string;
+  refresh: string;
+  refreshing: string;
+  searchOrderPlaceholder: string;
+  applySearch: string;
+  resetSearch: string;
+  lastSynced: string;
+  emptyState: string;
+  fallbackRoomName: string;
+  bookedAt: string;
+  stayPeriod: string;
+  duration: string;
+  checkIn: string;
+  checkOut: string;
+  guestsRooms: string;
+  paymentMethod: string;
+  total: string;
+  roomSubtotal: string;
+  breakfast: string;
+  subtotal: string;
+  appFee: string;
+  tax: string;
+  payNow: string;
+  yourReview: string;
+  reviewSentAt: string;
+  tenantReply: string;
+  tenantRepliedAt: string;
+  writeReview: string;
+  reviewPlaceholder: string;
+  submitReview: string;
+  submittingReview: string;
+  searchStartDate: string;
+  searchEndDate: string;
+  searchOrderLabel: string;
+  ratingOptions: Array<{ value: string; label: string }>;
+};
+
+const TRANSACTION_COPY: Record<AppLocale, TransactionCopy> = {
+  id: {
+    loginAgain: "Silakan login kembali.",
+    failedLoad: "Gagal memuat transaksi.",
+    failedReview: "Gagal mengirim review.",
+    reviewSuccess: "Review berhasil dikirim.",
+    ratingRange: "Rating review harus antara 1 sampai 5.",
+    reviewRequired: "Komentar review wajib diisi.",
+    historyEyebrow: "Riwayat Transaksi",
+    historyTitle: "Daftar transaksi pemesanan Anda",
+    historySubtitle:
+      "Cari berdasarkan nomor pesanan atau rentang tanggal pembuatan transaksi.",
+    backHome: "Kembali ke Beranda",
+    refresh: "Muat Ulang",
+    refreshing: "Memuat ulang...",
+    searchOrderPlaceholder: "Cari nomor pesanan",
+    applySearch: "Cari",
+    resetSearch: "Atur Ulang",
+    lastSynced: "Terakhir sinkron",
+    emptyState: "Belum ada transaksi.",
+    fallbackRoomName: "Kamar",
+    bookedAt: "Dipesan",
+    stayPeriod: "Periode menginap",
+    duration: "Durasi",
+    checkIn: "Check-in",
+    checkOut: "Check-out",
+    guestsRooms: "Tamu / Kamar",
+    paymentMethod: "Metode Bayar",
+    total: "Total",
+    roomSubtotal: "Subtotal kamar",
+    breakfast: "Sarapan",
+    subtotal: "Subtotal",
+    appFee: "Biaya layanan aplikasi",
+    tax: "Pajak",
+    payNow: "Bayar Sekarang",
+    yourReview: "Ulasan Anda",
+    reviewSentAt: "Dikirim",
+    tenantReply: "Balasan Tenant",
+    tenantRepliedAt: "Dibalas pada",
+    writeReview: "Tulis Ulasan",
+    reviewPlaceholder: "Bagikan pengalaman menginap Anda...",
+    submitReview: "Kirim Ulasan",
+    submittingReview: "Mengirim...",
+    searchStartDate: "Tanggal mulai",
+    searchEndDate: "Tanggal akhir",
+    searchOrderLabel: "Nomor pesanan",
+    ratingOptions: [
+      { value: "5", label: "5 - Sangat baik" },
+      { value: "4", label: "4 - Baik" },
+      { value: "3", label: "3 - Cukup" },
+      { value: "2", label: "2 - Kurang" },
+      { value: "1", label: "1 - Buruk" },
+    ],
+  },
+  en: {
+    loginAgain: "Please sign in again.",
+    failedLoad: "Failed to load transactions.",
+    failedReview: "Failed to submit review.",
+    reviewSuccess: "Review submitted successfully.",
+    ratingRange: "Review rating must be between 1 and 5.",
+    reviewRequired: "Review comment is required.",
+    historyEyebrow: "Transaction History",
+    historyTitle: "Your booking transactions",
+    historySubtitle:
+      "Search by order number or a transaction creation date range.",
+    backHome: "Back to Home",
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+    searchOrderPlaceholder: "Search order number",
+    applySearch: "Search",
+    resetSearch: "Reset",
+    lastSynced: "Last synced",
+    emptyState: "No transactions yet.",
+    fallbackRoomName: "Room",
+    bookedAt: "Booked",
+    stayPeriod: "Stay period",
+    duration: "Duration",
+    checkIn: "Check-in",
+    checkOut: "Check-out",
+    guestsRooms: "Guests / Rooms",
+    paymentMethod: "Payment method",
+    total: "Total",
+    roomSubtotal: "Room subtotal",
+    breakfast: "Breakfast",
+    subtotal: "Subtotal",
+    appFee: "Application service fee",
+    tax: "Tax",
+    payNow: "Pay Now",
+    yourReview: "Your Review",
+    reviewSentAt: "Submitted",
+    tenantReply: "Tenant Reply",
+    tenantRepliedAt: "Replied at",
+    writeReview: "Write a Review",
+    reviewPlaceholder: "Share your stay experience...",
+    submitReview: "Submit Review",
+    submittingReview: "Submitting...",
+    searchStartDate: "Start date",
+    searchEndDate: "End date",
+    searchOrderLabel: "Order number",
+    ratingOptions: [
+      { value: "5", label: "5 - Excellent" },
+      { value: "4", label: "4 - Good" },
+      { value: "3", label: "3 - Fair" },
+      { value: "2", label: "2 - Poor" },
+      { value: "1", label: "1 - Bad" },
+    ],
+  },
+};
+
+const formatIDR = (value: string | number, locale: AppLocale) => {
   const parsed = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(parsed)) return value;
-  return new Intl.NumberFormat("id-ID", {
+  return new Intl.NumberFormat(locale === "en" ? "en-US" : "id-ID", {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
@@ -82,6 +248,10 @@ const formatIDR = (value: string | number) => {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const LOCALE_CODE: Record<AppLocale, string> = {
+  id: "id-ID",
+  en: "en-US",
+};
 
 const parseDateValue = (value: string) => {
   if (!value) return null;
@@ -98,26 +268,48 @@ const parseDateValue = (value: string) => {
 
 const formatDateLabel = (
   value: string,
-  _options: Intl.DateTimeFormatOptions = {},
+  locale: AppLocale,
+  options: Intl.DateTimeFormatOptions = {},
 ) => {
-  return formatDateDDMMYYYY(value);
+  const parsed = parseDateValue(value);
+  if (!parsed) return "-";
+
+  return new Intl.DateTimeFormat(LOCALE_CODE[locale], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    ...options,
+  }).format(parsed);
 };
 
-const formatDateTime = (value: string) => {
-  return formatDateDDMMYYYY(value);
+const formatDateTime = (value: string, locale: AppLocale) => {
+  const parsed = parseDateValue(value);
+  if (!parsed) return "-";
+
+  return new Intl.DateTimeFormat(LOCALE_CODE[locale], {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsed);
 };
 
-const buildStaySummary = (checkIn: string, checkOut: string): StaySummary => {
+const buildStaySummary = (
+  checkIn: string,
+  checkOut: string,
+  locale: AppLocale,
+): StaySummary => {
   const checkInDate = parseDateValue(checkIn);
   const checkOutDate = parseDateValue(checkOut);
 
-  const checkInLabel = formatDateLabel(checkIn, {
+  const checkInLabel = formatDateLabel(checkIn, locale, {
     weekday: "short",
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
-  const checkOutLabel = formatDateLabel(checkOut, {
+  const checkOutLabel = formatDateLabel(checkOut, locale, {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -146,7 +338,15 @@ const buildStaySummary = (checkIn: string, checkOut: string): StaySummary => {
 
   const nights = Math.max(0, Math.round((checkOutDay - checkInDay) / MS_PER_DAY));
   const nightsLabel =
-    nights <= 0 ? "-" : nights === 1 ? "1 malam" : `${nights} malam`;
+    nights <= 0
+      ? "-"
+      : locale === "en"
+        ? nights === 1
+          ? "1 night"
+          : `${nights} nights`
+        : nights === 1
+          ? "1 malam"
+          : `${nights} malam`;
 
   return {
     periodLabel: `${checkInLabel} - ${checkOutLabel}`,
@@ -156,29 +356,31 @@ const buildStaySummary = (checkIn: string, checkOut: string): StaySummary => {
   };
 };
 
-const formatStatusLabel = (status: BookingStatus) => {
+const formatStatusLabel = (status: BookingStatus, locale: AppLocale) => {
   switch (status) {
     case "MENUNGGU_PEMBAYARAN":
-      return "Menunggu Pembayaran";
+      return locale === "en" ? "Waiting Payment" : "Menunggu Pembayaran";
     case "MENUNGGU_KONFIRMASI_PEMBAYARAN":
-      return "Menunggu Konfirmasi Pembayaran";
+      return locale === "en"
+        ? "Waiting Payment Confirmation"
+        : "Menunggu Konfirmasi Pembayaran";
     case "DIPROSES":
-      return "Diproses";
+      return locale === "en" ? "In Process" : "Diproses";
     case "DIBATALKAN":
-      return "Dibatalkan";
+      return locale === "en" ? "Cancelled" : "Dibatalkan";
     case "SELESAI":
-      return "Selesai";
+      return locale === "en" ? "Completed" : "Selesai";
     default:
       return status;
   }
 };
 
-const formatPaymentMethodLabel = (method: PaymentMethod) => {
+const formatPaymentMethodLabel = (method: PaymentMethod, locale: AppLocale) => {
   switch (method) {
     case "MANUAL_TRANSFER":
-      return "Transfer Manual";
+      return locale === "en" ? "Manual Transfer" : "Transfer Manual";
     case "XENDIT":
-      return "Gateway Pembayaran";
+      return locale === "en" ? "Payment Gateway" : "Gateway Pembayaran";
     default:
       return method;
   }
@@ -213,6 +415,8 @@ const buildDraftFromReview = (): ReviewDraft => ({
 });
 
 export default function MyTransactionClient() {
+  const locale = useAppLocaleValue();
+  const copy = TRANSACTION_COPY[locale];
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -250,7 +454,7 @@ export default function MyTransactionClient() {
     async (silent = false, targetFilters: SearchFilters = appliedFilters) => {
       const token = getAuthToken();
       if (!token) {
-        setError("Silakan login kembali.");
+        setError(copy.loginAgain);
         setTransactions([]);
         return;
       }
@@ -273,7 +477,7 @@ export default function MyTransactionClient() {
             | { message?: string };
 
           if (!response.ok) {
-            throw new Error(payload.message || "Gagal memuat transaksi.");
+            throw new Error(payload.message || copy.failedLoad);
           }
 
           return payload as TransactionResponse;
@@ -299,13 +503,13 @@ export default function MyTransactionClient() {
 
         setLastSyncedAt(new Date().toISOString());
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Gagal memuat transaksi.");
+        setError(err instanceof Error ? err.message : copy.failedLoad);
         setTransactions([]);
       } finally {
         if (!silent) setLoading(false);
       }
     },
-    [appliedFilters, buildQueryString],
+    [appliedFilters, buildQueryString, copy.failedLoad, copy.loginAgain],
   );
 
   useEffect(() => {
@@ -369,7 +573,7 @@ export default function MyTransactionClient() {
   const handleSubmitReview = async (bookingId: string) => {
     const token = getAuthToken();
     if (!token) {
-      setError("Silakan login kembali.");
+      setError(copy.loginAgain);
       return;
     }
 
@@ -378,11 +582,11 @@ export default function MyTransactionClient() {
     const comment = draft.comment.trim();
 
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-      setError("Rating review harus antara 1 sampai 5.");
+      setError(copy.ratingRange);
       return;
     }
     if (!comment) {
-      setError("Komentar review wajib diisi.");
+      setError(copy.reviewRequired);
       return;
     }
 
@@ -405,10 +609,10 @@ export default function MyTransactionClient() {
       };
 
       if (!response.ok) {
-        throw new Error(payload.message || "Gagal mengirim review.");
+        throw new Error(payload.message || copy.failedReview);
       }
 
-      setFeedback(payload.message ?? "Review berhasil dikirim.");
+      setFeedback(payload.message ?? copy.reviewSuccess);
       setReviewDrafts((prev) => {
         const next = { ...prev };
         delete next[bookingId];
@@ -416,7 +620,7 @@ export default function MyTransactionClient() {
       });
       await fetchTransactions(true, appliedFilters);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengirim review.");
+      setError(err instanceof Error ? err.message : copy.failedReview);
     } finally {
       setReviewSubmittingId(null);
     }
@@ -433,13 +637,13 @@ export default function MyTransactionClient() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                Riwayat Transaksi
+                {copy.historyEyebrow}
               </p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-                Daftar transaksi pemesanan Anda
+                {copy.historyTitle}
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Cari berdasarkan nomor pesanan atau tanggal pembuatan transaksi.
+                {copy.historySubtitle}
               </p>
             </div>
             <div className="flex gap-2">
@@ -447,7 +651,7 @@ export default function MyTransactionClient() {
                 href="/"
                 className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
               >
-                Kembali ke Beranda
+                {copy.backHome}
               </a>
               <button
                 type="button"
@@ -455,7 +659,7 @@ export default function MyTransactionClient() {
                 disabled={loading}
                 className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
               >
-                {loading ? "Memuat ulang..." : "Muat Ulang"}
+                {loading ? copy.refreshing : copy.refresh}
               </button>
             </div>
           </div>
@@ -468,7 +672,8 @@ export default function MyTransactionClient() {
                 onChange={(event) =>
                   setFilters((prev) => ({ ...prev, orderNo: event.target.value }))
                 }
-                placeholder="Cari nomor pesanan"
+                aria-label={copy.searchOrderLabel}
+                placeholder={copy.searchOrderPlaceholder}
                 className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
               />
               <input
@@ -477,6 +682,7 @@ export default function MyTransactionClient() {
                 onChange={(event) =>
                   setFilters((prev) => ({ ...prev, startDate: event.target.value }))
                 }
+                aria-label={copy.searchStartDate}
                 className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
               />
               <input
@@ -485,6 +691,7 @@ export default function MyTransactionClient() {
                 onChange={(event) =>
                   setFilters((prev) => ({ ...prev, endDate: event.target.value }))
                 }
+                aria-label={copy.searchEndDate}
                 className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
               />
               <div className="flex gap-2">
@@ -493,14 +700,14 @@ export default function MyTransactionClient() {
                   onClick={handleApplySearch}
                   className="flex-1 rounded-2xl border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Cari
+                  {copy.applySearch}
                 </button>
                 <button
                   type="button"
                   onClick={handleResetSearch}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300"
                 >
-                  Atur Ulang Pencarian
+                  {copy.resetSearch}
                 </button>
               </div>
             </div>
@@ -513,7 +720,7 @@ export default function MyTransactionClient() {
                 className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  {formatStatusLabel(status)}
+                  {formatStatusLabel(status, locale)}
                 </p>
                 <p className="mt-1 text-xl font-semibold text-slate-900">
                   {groupedStatus[status]}
@@ -524,7 +731,7 @@ export default function MyTransactionClient() {
 
           {lastSyncedAt ? (
             <p className="mt-4 text-xs text-slate-500">
-              Terakhir sinkron: {formatDateTime(lastSyncedAt)}
+              {copy.lastSynced}: {formatDateTime(lastSyncedAt, locale)}
             </p>
           ) : null}
 
@@ -543,13 +750,13 @@ export default function MyTransactionClient() {
           <div className="mt-6 space-y-3">
             {!loading && transactions.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-                Belum ada transaksi.
+                {copy.emptyState}
               </div>
             ) : null}
 
             {transactions.map((trx) => {
               const draft = reviewDrafts[trx.id] ?? buildDraftFromReview();
-              const staySummary = buildStaySummary(trx.checkIn, trx.checkOut);
+              const staySummary = buildStaySummary(trx.checkIn, trx.checkOut, locale);
 
               return (
                 <article
@@ -562,10 +769,10 @@ export default function MyTransactionClient() {
                         {trx.orderNo}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-slate-900">
-                        {trx.roomType?.name ?? "Kamar"}
+                        {trx.roomType?.name ?? copy.fallbackRoomName}
                       </p>
                       <p className="text-xs text-slate-500">
-                        Dipesan: {formatDateTime(trx.createdAt)}
+                        {copy.bookedAt}: {formatDateTime(trx.createdAt, locale)}
                       </p>
                     </div>
                     <span
@@ -573,52 +780,92 @@ export default function MyTransactionClient() {
                         trx.status,
                       )}`}
                     >
-                      {formatStatusLabel(trx.status)}
+                      {formatStatusLabel(trx.status, locale)}
                     </span>
                   </div>
 
                   <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                     <p>
-                      Periode menginap:{" "}
+                      {copy.stayPeriod}:{" "}
                       <span className="font-semibold text-slate-900">
                         {staySummary.periodLabel}
                       </span>
                     </p>
                     <p>
-                      Durasi:{" "}
+                      {copy.duration}:{" "}
                       <span className="font-semibold text-slate-900">
                         {staySummary.nightsLabel}
                       </span>
                     </p>
                     <p>
-                      Check-in:{" "}
+                      {copy.checkIn}:{" "}
                       <span className="font-semibold text-slate-900">
                         {staySummary.checkInLabel}
                       </span>
                     </p>
                     <p>
-                      Check-out:{" "}
+                      {copy.checkOut}:{" "}
                       <span className="font-semibold text-slate-900">
                         {staySummary.checkOutLabel}
                       </span>
                     </p>
                     <p>
-                      Tamu / Kamar:{" "}
+                      {copy.guestsRooms}:{" "}
                       <span className="font-semibold text-slate-900">
                         {trx.guests} / {trx.rooms}
                       </span>
                     </p>
                     <p>
-                      Metode Bayar:{" "}
+                      {copy.paymentMethod}:{" "}
                       <span className="font-semibold text-slate-900">
-                        {formatPaymentMethodLabel(trx.paymentMethod)}
+                        {formatPaymentMethodLabel(trx.paymentMethod, locale)}
                       </span>
                     </p>
                   </div>
 
                   <p className="mt-3 text-sm font-semibold text-slate-900">
-                    Total: {formatIDR(trx.totalAmount)}
+                    {copy.total}: {formatIDR(trx.totalAmount, locale)}
                   </p>
+
+                  {(trx.subtotalAmount || trx.appFeeAmount || trx.taxAmount) && (
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                      <div className="flex items-center justify-between">
+                        <span>{copy.roomSubtotal}</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatIDR(trx.roomSubtotal ?? "0", locale)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span>
+                          {copy.breakfast}
+                          {trx.breakfastSelected && (trx.breakfastPax ?? 0) > 0
+                            ? ` (${trx.breakfastPax} pax)`
+                            : ""}
+                        </span>
+                        <span className="font-semibold text-slate-900">
+                          {formatIDR(trx.breakfastTotal ?? "0", locale)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span>{copy.subtotal}</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatIDR(trx.subtotalAmount ?? "0", locale)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span>{copy.appFee}</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatIDR(trx.appFeeAmount ?? "0", locale)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span>{copy.tax}</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatIDR(trx.taxAmount ?? "0", locale)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {trx.status === "MENUNGGU_PEMBAYARAN" &&
                   trx.paymentMethod === "XENDIT" &&
@@ -629,33 +876,34 @@ export default function MyTransactionClient() {
                       rel="noreferrer"
                       className="mt-3 inline-flex rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                     >
-                      Bayar Sekarang
+                      {copy.payNow}
                     </a>
                   ) : null}
 
                   {trx.review ? (
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Ulasan Anda
+                        {copy.yourReview}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-amber-700">
                         {"★".repeat(Math.max(0, Math.min(5, trx.review.rating)))}
                       </p>
                       <p className="mt-2 text-sm text-slate-700">{trx.review.comment}</p>
                       <p className="mt-2 text-xs text-slate-500">
-                        Dikirim: {formatDateTime(trx.review.createdAt)}
+                        {copy.reviewSentAt}: {formatDateTime(trx.review.createdAt, locale)}
                       </p>
                       {trx.review.tenantReply ? (
                         <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
                           <p className="text-xs font-semibold text-emerald-700">
-                            Balasan Tenant
+                            {copy.tenantReply}
                           </p>
                           <p className="mt-1 text-sm text-slate-700">
                             {trx.review.tenantReply}
                           </p>
                           {trx.review.tenantRepliedAt ? (
                             <p className="mt-2 text-xs text-slate-500">
-                              Dibalas pada: {formatDateTime(trx.review.tenantRepliedAt)}
+                              {copy.tenantRepliedAt}:{" "}
+                              {formatDateTime(trx.review.tenantRepliedAt, locale)}
                             </p>
                           ) : null}
                         </div>
@@ -666,7 +914,7 @@ export default function MyTransactionClient() {
                   {trx.status === "SELESAI" && !trx.review ? (
                     <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Tulis Ulasan
+                        {copy.writeReview}
                       </p>
                       <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
                         <select
@@ -678,11 +926,11 @@ export default function MyTransactionClient() {
                           }
                           className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
                         >
-                          <option value="5">5 - Sangat baik</option>
-                          <option value="4">4 - Baik</option>
-                          <option value="3">3 - Cukup</option>
-                          <option value="2">2 - Kurang</option>
-                          <option value="1">1 - Buruk</option>
+                          {copy.ratingOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                         <textarea
                           rows={3}
@@ -692,7 +940,7 @@ export default function MyTransactionClient() {
                               comment: event.target.value,
                             })
                           }
-                          placeholder="Bagikan pengalaman menginap Anda..."
+                          placeholder={copy.reviewPlaceholder}
                           className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
                         />
                       </div>
@@ -703,8 +951,8 @@ export default function MyTransactionClient() {
                         className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
                       >
                         {reviewSubmittingId === trx.id
-                          ? "Mengirim..."
-                          : "Kirim Ulasan"}
+                          ? copy.submittingReview
+                          : copy.submitReview}
                       </button>
                     </div>
                   ) : null}

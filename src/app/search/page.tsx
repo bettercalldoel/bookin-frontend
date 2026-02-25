@@ -5,9 +5,19 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { formatDateDDMMYYYY } from "@/lib/date-format";
+import { formatCompactLocation } from "@/lib/location-format";
+import {
+  ALL_AMENITY_KEYS,
+  QUICK_FILTER_AMENITY_KEYS,
+  getAmenityLabelByLocale,
+  isAmenityKey,
+  type AmenityKey,
+} from "@/lib/amenities";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
+import type { AppLocale } from "@/lib/app-locale";
 
-const formatIDR = (value: number) =>
-  new Intl.NumberFormat("id-ID", {
+const formatIDR = (value: number, locale: AppLocale) =>
+  new Intl.NumberFormat(locale === "en" ? "en-US" : "id-ID", {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
@@ -23,6 +33,24 @@ const parseSortBy = (value: string | null): "name" | "price" =>
 
 const parseSortOrder = (value: string | null): "asc" | "desc" =>
   value === "desc" ? "desc" : "asc";
+
+const parseAmenitiesMode = (value: string | null): "all" | "any" =>
+  value === "all" ? "all" : "any";
+
+const parseAmenityKeysFromParam = (value: string | null): AmenityKey[] => {
+  if (!value?.trim()) return [];
+
+  const uniqueValues = Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+
+  return uniqueValues.filter((item): item is AmenityKey => isAmenityKey(item));
+};
 
 const diffNights = (start: string, end: string) => {
   if (!start || !end) return 0;
@@ -56,21 +84,23 @@ type SearchResponseItem = {
   id: string;
   name: string;
   address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   city?: string | null;
   province?: string | null;
   categoryName?: string | null;
+  amenityKeys?: string[];
   coverUrl?: string | null;
   minPrice?: string | null;
+  breakfast?: {
+    enabled?: boolean;
+    pricePerPax?: string | null;
+    currency?: string | null;
+  };
 };
 
 type PublicCategory = {
   name: string;
-};
-
-type PublicCity = {
-  id: string;
-  name: string;
-  province?: string | null;
 };
 
 type SearchResponse = {
@@ -92,12 +122,17 @@ type DisplayResult = {
   tag: string;
   highlight: string;
   image: string;
+  amenityKeys: AmenityKey[];
+  breakfastEnabled: boolean;
+  breakfastPricePerPax: number;
 };
 
 type SearchFormState = {
-  cityId: string;
+  destination: string;
   propertyName: string;
   category: string;
+  amenities: AmenityKey[];
+  amenitiesMode: "all" | "any";
   sortBy: "name" | "price";
   sortOrder: "asc" | "desc";
   startDate: string;
@@ -122,9 +157,11 @@ const buildFormFromParams = (params: SearchParamsSource): SearchFormState => {
         : 1;
 
   return {
-    cityId: params.get("city_id") ?? "",
+    destination: params.get("loc_term") ?? "",
     propertyName: params.get("property_name") ?? "",
     category: params.get("category") ?? "",
+    amenities: parseAmenityKeysFromParam(params.get("amenities")),
+    amenitiesMode: parseAmenitiesMode(params.get("amenities_mode")),
     sortBy: parseSortBy(params.get("sort_by")),
     sortOrder: parseSortOrder(params.get("sort_order")),
     startDate: params.get("start_date") ?? "",
@@ -135,6 +172,157 @@ const buildFormFromParams = (params: SearchParamsSource): SearchFormState => {
     page: Math.max(1, parseNumber(params.get("page"), 1)),
   };
 };
+
+const SEARCH_COPY = {
+  id: {
+    allDestinations: "Semua destinasi",
+    headerChoicePrefix: "Pilihan di",
+    headerDefaultTitle: "Pilih properti yang cocok",
+    flexibleDates: "Tanggal fleksibel",
+    flexibleGuests: "Tamu fleksibel",
+    backToHome: "Kembali ke Home",
+    searchResults: "Hasil pencarian",
+    filter: "Filter",
+    adjustSearch: "Atur pencarian",
+    location: "Lokasi",
+    destination: "Destinasi",
+    destinationPlaceholder: "Ketik kota tujuan",
+    propertyName: "Nama properti",
+    optional: "Opsional",
+    category: "Kategori",
+    allCategories: "Semua kategori",
+    amenities: "Fasilitas",
+    amenitiesHint: "Pilih fasilitas yang dibutuhkan.",
+    filterMode: "Mode filter",
+    filterAny: "Salah satu",
+    filterAll: "Semua terpilih",
+    hide: "Sembunyikan",
+    otherAmenities: "Fasilitas lain",
+    stay: "Menginap",
+    travelDate: "Tanggal berangkat",
+    stayDuration: "Durasi menginap",
+    decreaseStayAria: "Kurangi durasi menginap",
+    increaseStayAria: "Tambah durasi menginap",
+    adults: "Dewasa",
+    children: "Anak",
+    totalRooms: "Jumlah kamar",
+    decreaseAdultsAria: "Kurangi jumlah dewasa",
+    increaseAdultsAria: "Tambah jumlah dewasa",
+    decreaseChildrenAria: "Kurangi jumlah anak",
+    increaseChildrenAria: "Tambah jumlah anak",
+    decreaseRoomsAria: "Kurangi jumlah kamar",
+    increaseRoomsAria: "Tambah jumlah kamar",
+    applySearch: "Terapkan pencarian",
+    loadingResults: "Memuat hasil pencarian...",
+    showingPrefix: "Menampilkan",
+    showingSuffix: "properti",
+    locationConnector: "di",
+    loadingListings: "Memuat...",
+    listingChoicesSuffix: "pilihan untuk Anda",
+    sortBy: "Urutkan",
+    sortName: "Nama",
+    sortPrice: "Harga",
+    sortAsc: "Ascending",
+    sortDesc: "Descending",
+    rating: "Rating",
+    breakfastAvailable: "Sarapan tersedia",
+    noBreakfast: "Tanpa opsi sarapan",
+    priceUnavailable: "Harga belum tersedia",
+    perNight: "/ malam",
+    totalLabel: "Total",
+    notIncludeFees: "Belum termasuk biaya layanan aplikasi 2% dan pajak 11%.",
+    viewDetails: "Lihat detail",
+    noResults: "Belum ada properti yang sesuai dengan pencarianmu.",
+    previous: "Sebelumnya",
+    next: "Selanjutnya",
+    guestSingular: "tamu",
+    guestPlural: "tamu",
+    nightSingular: "malam",
+    nightPlural: "malam",
+    roomSingular: "kamar",
+    roomPlural: "kamar",
+    peopleUnit: "orang",
+    amenityPrefix: "Fasilitas",
+    propertyTagFallback: "Properti",
+    highlightAddress: "Akses mudah dan lokasi strategis",
+    highlightDefault: "Properti terverifikasi",
+    failedLoadResults: "Gagal memuat hasil pencarian.",
+  },
+  en: {
+    allDestinations: "All destinations",
+    headerChoicePrefix: "Options in",
+    headerDefaultTitle: "Choose the right property",
+    flexibleDates: "Flexible dates",
+    flexibleGuests: "Flexible guests",
+    backToHome: "Back to Home",
+    searchResults: "Search results",
+    filter: "Filter",
+    adjustSearch: "Adjust search",
+    location: "Location",
+    destination: "Destination",
+    destinationPlaceholder: "Type destination city",
+    propertyName: "Property name",
+    optional: "Optional",
+    category: "Category",
+    allCategories: "All categories",
+    amenities: "Amenities",
+    amenitiesHint: "Choose the amenities you need.",
+    filterMode: "Filter mode",
+    filterAny: "Any selected",
+    filterAll: "All selected",
+    hide: "Hide",
+    otherAmenities: "More amenities",
+    stay: "Stay",
+    travelDate: "Departure date",
+    stayDuration: "Stay duration",
+    decreaseStayAria: "Decrease stay duration",
+    increaseStayAria: "Increase stay duration",
+    adults: "Adults",
+    children: "Children",
+    totalRooms: "Rooms",
+    decreaseAdultsAria: "Decrease adults",
+    increaseAdultsAria: "Increase adults",
+    decreaseChildrenAria: "Decrease children",
+    increaseChildrenAria: "Increase children",
+    decreaseRoomsAria: "Decrease rooms",
+    increaseRoomsAria: "Increase rooms",
+    applySearch: "Apply search",
+    loadingResults: "Loading search results...",
+    showingPrefix: "Showing",
+    showingSuffix: "properties",
+    locationConnector: "in",
+    loadingListings: "Loading...",
+    listingChoicesSuffix: "options for you",
+    sortBy: "Sort by",
+    sortName: "Name",
+    sortPrice: "Price",
+    sortAsc: "Ascending",
+    sortDesc: "Descending",
+    rating: "Rating",
+    breakfastAvailable: "Breakfast available",
+    noBreakfast: "No breakfast option",
+    priceUnavailable: "Price not available",
+    perNight: "/ night",
+    totalLabel: "Total",
+    notIncludeFees: "Excludes 2% app service fee and 11% tax.",
+    viewDetails: "View details",
+    noResults: "No properties match your search yet.",
+    previous: "Previous",
+    next: "Next",
+    guestSingular: "guest",
+    guestPlural: "guests",
+    nightSingular: "night",
+    nightPlural: "nights",
+    roomSingular: "room",
+    roomPlural: "rooms",
+    peopleUnit: "people",
+    amenityPrefix: "Amenities",
+    propertyTagFallback: "Property",
+    highlightAddress: "Easy access and strategic location",
+    highlightDefault: "Verified property",
+    failedLoadResults: "Failed to load search results.",
+  },
+} as const;
 
 export default function SearchPage() {
   return (
@@ -148,6 +336,19 @@ function SearchPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const paramsSnapshot = searchParams.toString();
+  const locale = useAppLocaleValue();
+  const copy = SEARCH_COPY[locale];
+  const formatCurrency = useMemo(
+    () => (value: number) => formatIDR(value, locale),
+    [locale],
+  );
+
+  const getNightLabel = (value: number) =>
+    value === 1 ? copy.nightSingular : copy.nightPlural;
+  const getGuestLabel = (value: number) =>
+    value === 1 ? copy.guestSingular : copy.guestPlural;
+  const getRoomLabel = (value: number) =>
+    value === 1 ? copy.roomSingular : copy.roomPlural;
 
   const [form, setForm] = useState<SearchFormState>(() =>
     buildFormFromParams(searchParams),
@@ -157,7 +358,7 @@ function SearchPageContent() {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
   const [categories, setCategories] = useState<PublicCategory[]>([]);
-  const [cities, setCities] = useState<PublicCity[]>([]);
+  const [showAllAmenitiesFilter, setShowAllAmenitiesFilter] = useState(false);
   const [resultsMeta, setResultsMeta] = useState({
     page: 1,
     limit: 8,
@@ -175,24 +376,40 @@ function SearchPageContent() {
   );
 
   const buildLocation = (item: SearchResponseItem) => {
-    const parts = [item.address, item.city, item.province].filter(Boolean);
-    return parts.length > 0 ? parts.join(", ") : "Lokasi belum tersedia";
+    return formatCompactLocation({
+      address: item.address,
+      city: item.city,
+      province: item.province,
+    });
   };
 
   const mapToDisplay = (items: SearchResponseItem[]) => {
     return items.map((item, index) => {
       const parsedPrice = item.minPrice ? Number(item.minPrice) : 0;
+      const amenityKeys = Array.isArray(item.amenityKeys)
+        ? item.amenityKeys.filter((key): key is AmenityKey => isAmenityKey(key))
+        : [];
+
       return {
         id: item.id,
         name: item.name,
         location: buildLocation(item),
         price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
         rating: "4.8",
-        tag: item.categoryName?.trim() || "Properti",
-        highlight: item.address
-          ? "Akses mudah dan lokasi strategis"
-          : "Properti terverifikasi",
+        tag: item.categoryName?.trim() || copy.propertyTagFallback,
+        highlight:
+          amenityKeys.length > 0
+            ? `${copy.amenityPrefix}: ${amenityKeys
+                .slice(0, 2)
+                .map((key) => getAmenityLabelByLocale(key, locale))
+                .join(", ")}`
+            : item.address
+              ? copy.highlightAddress
+              : copy.highlightDefault,
         image: item.coverUrl || fallbackImages[index % fallbackImages.length],
+        amenityKeys,
+        breakfastEnabled: Boolean(item.breakfast?.enabled),
+        breakfastPricePerPax: Number(item.breakfast?.pricePerPax ?? 0) || 0,
       } satisfies DisplayResult;
     });
   };
@@ -200,14 +417,20 @@ function SearchPageContent() {
   const totalGuests = form.adults + form.children;
   const nights = Math.max(1, form.nights);
   const checkOutDate = addDays(form.startDate, nights);
-
-  const selectedCity = useMemo(
-    () => cities.find((city) => city.id === form.cityId) ?? null,
-    [cities, form.cityId],
-  );
-  const legacyLocTerm = (searchParams.get("loc_term") ?? "").trim();
-  const destinationLabel =
-    selectedCity?.name || legacyLocTerm || "Semua destinasi";
+  const destinationLabel = form.destination.trim() || copy.allDestinations;
+  const headerTitle =
+    destinationLabel !== copy.allDestinations
+      ? `${copy.headerChoicePrefix} ${destinationLabel}`
+      : copy.headerDefaultTitle;
+  const stayDateSummary = form.startDate
+    ? `${formatDateDDMMYYYY(form.startDate)}${
+        checkOutDate ? ` - ${formatDateDDMMYYYY(checkOutDate)}` : ""
+      }`
+    : copy.flexibleDates;
+  const guestSummary =
+    totalGuests > 0
+      ? `${totalGuests} ${getGuestLabel(totalGuests)}`
+      : copy.flexibleGuests;
 
   const fetchResults = async () => {
     try {
@@ -219,7 +442,7 @@ function SearchPageContent() {
       const res = await fetch(url);
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.message || "Gagal memuat hasil pencarian.");
+        throw new Error(payload.message || copy.failedLoadResults);
       }
       const payload = (await res.json()) as SearchResponse;
       setResults(mapToDisplay(payload.data ?? []));
@@ -238,7 +461,7 @@ function SearchPageContent() {
         totalPages: 1,
       });
       setResultsError(
-        err instanceof Error ? err.message : "Gagal memuat hasil pencarian.",
+        err instanceof Error ? err.message : copy.failedLoadResults,
       );
     } finally {
       setResultsLoading(false);
@@ -247,7 +470,7 @@ function SearchPageContent() {
 
   useEffect(() => {
     fetchResults();
-  }, [paramsSnapshot]);
+  }, [paramsSnapshot, locale]);
 
   const fetchCategories = async () => {
     try {
@@ -271,40 +494,11 @@ function SearchPageContent() {
     fetchCategories();
   }, []);
 
-  const fetchCities = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/properties/cities?limit=300`);
-      if (!res.ok) return;
-      const payload = (await res.json()) as PublicCity[];
-      if (!Array.isArray(payload)) return;
-      setCities(
-        payload
-          .filter((item): item is PublicCity => {
-            return (
-              typeof item?.id === "string" &&
-              item.id.trim().length > 0 &&
-              typeof item?.name === "string" &&
-              item.name.trim().length > 0
-            );
-          })
-          .map((item) => ({
-            id: item.id,
-            name: item.name.trim(),
-            province: item.province?.trim() || null,
-          })),
-      );
-    } catch {
-      setCities([]);
-    }
-  };
-
-  useEffect(() => {
-    fetchCities();
-  }, []);
-
   const pushSearch = (nextForm: SearchFormState) => {
     const params = new URLSearchParams();
-    if (nextForm.cityId) params.set("city_id", nextForm.cityId);
+    if (nextForm.destination.trim()) {
+      params.set("loc_term", nextForm.destination.trim());
+    }
     if (nextForm.startDate) {
       params.set("start_date", nextForm.startDate);
       const computedEndDate = addDays(nextForm.startDate, Math.max(1, nextForm.nights));
@@ -321,6 +515,10 @@ function SearchPageContent() {
     }
     if (nextForm.category.trim()) {
       params.set("category", nextForm.category.trim());
+    }
+    if (nextForm.amenities.length > 0) {
+      params.set("amenities", nextForm.amenities.join(","));
+      params.set("amenities_mode", nextForm.amenitiesMode);
     }
     params.set("sort_by", nextForm.sortBy);
     params.set("sort_order", nextForm.sortOrder);
@@ -341,49 +539,91 @@ function SearchPageContent() {
     pushSearch(nextForm);
   };
 
+  const handleToggleAmenity = (key: AmenityKey) => {
+    setForm((prev) => {
+      const selected = prev.amenities.includes(key)
+        ? prev.amenities.filter((item) => item !== key)
+        : [...prev.amenities, key];
+
+      const nextAmenities = ALL_AMENITY_KEYS.filter((item) =>
+        selected.includes(item),
+      );
+
+      return {
+        ...prev,
+        amenities: nextAmenities,
+        page: 1,
+      };
+    });
+  };
+
+  const updateNights = (delta: number) => {
+    setForm((prev) => ({
+      ...prev,
+      nights: Math.max(1, Math.min(30, prev.nights + delta)),
+      page: 1,
+    }));
+  };
+
+  const updateAdults = (delta: number) => {
+    setForm((prev) => ({
+      ...prev,
+      adults: Math.max(0, Math.min(10, prev.adults + delta)),
+      page: 1,
+    }));
+  };
+
+  const updateChildren = (delta: number) => {
+    setForm((prev) => ({
+      ...prev,
+      children: Math.max(0, Math.min(10, prev.children + delta)),
+      page: 1,
+    }));
+  };
+
+  const updateRooms = (delta: number) => {
+    setForm((prev) => ({
+      ...prev,
+      rooms: Math.max(1, Math.min(8, prev.rooms + delta)),
+      page: 1,
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <section className="relative overflow-hidden bg-linear-to-br from-slate-950 via-slate-900 to-teal-950 px-6 py-16 text-white">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-          <div className="max-w-2xl space-y-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-teal-200">
-              Pencarian BookIn
+      <section className="relative overflow-hidden bg-linear-to-br from-slate-950 via-slate-900 to-teal-950 px-6 py-12 text-white">
+        <div className="mx-auto w-full max-w-6xl">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:border-white/35 hover:bg-white/15"
+          >
+            <span aria-hidden="true">{"<"}</span>
+            {copy.backToHome}
+          </Link>
+          <div className="mt-4 rounded-3xl border border-white/15 bg-white/5 p-5 backdrop-blur sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-200">
+              {copy.searchResults}
             </p>
-            <h1 className="text-3xl font-semibold sm:text-4xl">
-              Temukan properti dengan harga terbaik untuk perjalanan Anda.
+            <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
+              {headerTitle}
             </h1>
-            <p className="text-sm text-slate-200">
-              {destinationLabel} - {nights} malam - {" "}
-              {totalGuests > 0 ? `${totalGuests} tamu` : "Tamu fleksibel"}
+            <p className="mt-2 text-sm text-slate-200">
+              {stayDateSummary}
             </p>
-          </div>
-          <div className="grid gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Destinasi</p>
-              <p className="mt-2 text-lg font-semibold">
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/95">
                 {destinationLabel}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Tanggal berangkat</p>
-              <p className="mt-2 text-lg font-semibold">
-                {form.startDate ? formatDateDDMMYYYY(form.startDate) : "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Check-out</p>
-              <p className="mt-2 text-lg font-semibold">
-                {checkOutDate ? formatDateDDMMYYYY(checkOutDate) : "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Jumlah tamu</p>
-              <p className="mt-2 text-lg font-semibold">
-                {totalGuests || 0} orang
-              </p>
-              <p className="text-xs text-teal-100">
-                {form.rooms} kamar
-              </p>
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/95">
+                {nights} {getNightLabel(nights)}
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/95">
+                {guestSummary}
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/95">
+                {Math.max(form.rooms, 1)} {getRoomLabel(Math.max(form.rooms, 1))}
+              </span>
             </div>
           </div>
         </div>
@@ -391,41 +631,40 @@ function SearchPageContent() {
         <div className="pointer-events-none absolute -bottom-12 left-12 h-40 w-40 rounded-full bg-amber-300/30 blur-3xl" />
       </section>
 
-      <section className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-12 lg:grid-cols-[320px_1fr]">
-        <aside className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-100">
+      <section className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-12 lg:grid-cols-[340px_1fr]">
+        <aside className="h-fit space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-100 lg:sticky lg:top-24">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-              Filter Pencarian
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+              {copy.filter}
             </p>
-            <h2 className="mt-3 text-xl font-semibold text-slate-900">
-              Sesuaikan kebutuhanmu
+            <h2 className="mt-1 text-lg font-semibold text-slate-900">
+              {copy.adjustSearch}
             </h2>
           </div>
 
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              {copy.location}
+            </p>
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Kota destinasi
-            <select
-              value={form.cityId}
+            {copy.destination}
+            <input
+              type="text"
+              value={form.destination}
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
-                  cityId: event.target.value,
+                  destination: event.target.value,
                   page: 1,
                 }))
               }
+              placeholder={copy.destinationPlaceholder}
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-            >
-              <option value="">Semua kota</option>
-              {cities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  {city.province ? `${city.name}, ${city.province}` : city.name}
-                </option>
-              ))}
-            </select>
+            />
           </label>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Nama properti
+            {copy.propertyName}
             <input
               value={form.propertyName}
               onChange={(event) =>
@@ -436,12 +675,12 @@ function SearchPageContent() {
                 }))
               }
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-              placeholder="Cari nama properti"
+              placeholder={copy.optional}
             />
           </label>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Kategori
+            {copy.category}
             <select
               value={form.category}
               onChange={(event) =>
@@ -453,7 +692,7 @@ function SearchPageContent() {
               }
               className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
             >
-              <option value="">Semua kategori</option>
+              <option value="">{copy.allCategories}</option>
               {categories.map((category) => (
                 <option key={category.name} value={category.name}>
                   {category.name}
@@ -461,9 +700,95 @@ function SearchPageContent() {
               ))}
             </select>
           </label>
+          </div>
 
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">
+                {copy.amenities}
+              </p>
+              <p className="text-xs text-slate-500">{copy.amenitiesHint}</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {QUICK_FILTER_AMENITY_KEYS.map((key) => {
+                const selected = form.amenities.includes(key);
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleToggleAmenity(key)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      selected
+                        ? "border-teal-300 bg-teal-100 text-teal-700"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    {getAmenityLabelByLocale(key, locale)}
+                  </button>
+                );
+              })}
+            </div>
+
+            <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500">
+              {copy.filterMode}
+              <select
+                value={form.amenitiesMode}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    amenitiesMode: event.target.value as "all" | "any",
+                    page: 1,
+                  }))
+                }
+                className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold tracking-normal text-slate-700 focus:border-teal-500 focus:outline-none"
+              >
+                <option value="any">{copy.filterAny}</option>
+                <option value="all">{copy.filterAll}</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={() => setShowAllAmenitiesFilter((prev) => !prev)}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              {showAllAmenitiesFilter ? copy.hide : copy.otherAmenities}
+            </button>
+
+            {showAllAmenitiesFilter ? (
+              <div className="flex flex-wrap gap-2">
+                {ALL_AMENITY_KEYS.filter(
+                  (key) => !QUICK_FILTER_AMENITY_KEYS.includes(key),
+                ).map((key) => {
+                  const selected = form.amenities.includes(key);
+
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleToggleAmenity(key)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        selected
+                          ? "border-sky-300 bg-sky-100 text-sky-700"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      }`}
+                    >
+                      {getAmenityLabelByLocale(key, locale)}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              {copy.stay}
+            </p>
           <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Tanggal berangkat
+            {copy.travelDate}
             <input
               type="date"
               value={form.startDate}
@@ -478,92 +803,149 @@ function SearchPageContent() {
             />
           </label>
 
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Durasi menginap
-            <select
-              value={String(nights)}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  nights: Math.max(1, Number(event.target.value) || 1),
-                  page: 1,
-                }))
-              }
-              className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-            >
-              {Array.from({ length: 30 }, (_, index) => index + 1).map((night) => (
-                <option key={night} value={night}>
-                  {night} malam
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="grid grid-cols-2 gap-4">
-            <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-              Dewasa
-              <input
-                type="number"
-                min={0}
-                value={form.adults}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    adults: Math.max(0, Number(event.target.value) || 0),
-                    page: 1,
-                  }))
-                }
-                className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-              />
-            </label>
-            <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-              Anak
-              <input
-                type="number"
-                min={0}
-                value={form.children}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    children: Math.max(0, Number(event.target.value) || 0),
-                    page: 1,
-                  }))
-                }
-                className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-              />
-            </label>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-600">{copy.stayDuration}</p>
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-2.5">
+              <p className="text-sm font-semibold text-slate-700">
+                {nights} {getNightLabel(nights)}
+              </p>
+              <div className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateNights(-1)}
+                  disabled={nights <= 1}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold text-slate-700 transition hover:border-teal-500 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                  aria-label={copy.decreaseStayAria}
+                >
+                  -
+                </button>
+                <span className="min-w-6 text-center text-sm font-semibold text-slate-900">
+                  {nights}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => updateNights(1)}
+                  disabled={nights >= 30}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold text-slate-700 transition hover:border-teal-500 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                  aria-label={copy.increaseStayAria}
+                >
+                  +
+                </button>
+              </div>
+            </div>
           </div>
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-600">
-            Jumlah kamar
-            <input
-              type="number"
-              min={1}
-              value={form.rooms}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  rooms: Math.max(1, Number(event.target.value) || 1),
-                  page: 1,
-                }))
-              }
-              className="h-11 rounded-2xl border border-slate-200 px-4 text-sm text-slate-700 focus:border-teal-500 focus:outline-none"
-            />
-          </label>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-600">{copy.adults}</p>
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-2.5">
+              <p className="text-sm font-semibold text-slate-700">
+                {form.adults} {copy.peopleUnit}
+              </p>
+              <div className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateAdults(-1)}
+                  disabled={form.adults <= 0}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold text-slate-700 transition hover:border-teal-500 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                  aria-label={copy.decreaseAdultsAria}
+                >
+                  -
+                </button>
+                <span className="min-w-6 text-center text-sm font-semibold text-slate-900">
+                  {form.adults}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => updateAdults(1)}
+                  disabled={form.adults >= 10}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold text-slate-700 transition hover:border-teal-500 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                  aria-label={copy.increaseAdultsAria}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-600">{copy.children}</p>
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-2.5">
+              <p className="text-sm font-semibold text-slate-700">
+                {form.children} {copy.peopleUnit}
+              </p>
+              <div className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateChildren(-1)}
+                  disabled={form.children <= 0}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold text-slate-700 transition hover:border-teal-500 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                  aria-label={copy.decreaseChildrenAria}
+                >
+                  -
+                </button>
+                <span className="min-w-6 text-center text-sm font-semibold text-slate-900">
+                  {form.children}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => updateChildren(1)}
+                  disabled={form.children >= 10}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold text-slate-700 transition hover:border-teal-500 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                  aria-label={copy.increaseChildrenAria}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-600">{copy.totalRooms}</p>
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-2.5">
+              <p className="text-sm font-semibold text-slate-700">
+                {Math.max(form.rooms, 1)} {getRoomLabel(Math.max(form.rooms, 1))}
+              </p>
+              <div className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateRooms(-1)}
+                  disabled={form.rooms <= 1}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold text-slate-700 transition hover:border-teal-500 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                  aria-label={copy.decreaseRoomsAria}
+                >
+                  -
+                </button>
+                <span className="min-w-6 text-center text-sm font-semibold text-slate-900">
+                  {Math.max(form.rooms, 1)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => updateRooms(1)}
+                  disabled={form.rooms >= 8}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-semibold text-slate-700 transition hover:border-teal-500 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                  aria-label={copy.increaseRoomsAria}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+          </div>
 
           <button
             type="button"
             onClick={handleApplySearch}
             className="w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
           >
-            Terapkan pencarian
+            {copy.applySearch}
           </button>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
             {resultsLoading
-              ? "Memuat hasil pencarian..."
-              : `Menampilkan ${resultsMeta.total} properti${
-                  destinationLabel !== "Semua destinasi"
-                    ? ` di ${destinationLabel}.`
+              ? copy.loadingResults
+              : `${copy.showingPrefix} ${resultsMeta.total} ${copy.showingSuffix}${
+                  destinationLabel !== copy.allDestinations
+                    ? ` ${copy.locationConnector} ${destinationLabel}.`
                     : "."
                 }`}
           </div>
@@ -573,17 +955,17 @@ function SearchPageContent() {
           <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white px-6 py-5 shadow-lg shadow-slate-100 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                Hasil pencarian
+                {copy.searchResults}
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-900">
                 {resultsLoading
-                  ? "Memuat..."
-                  : `${resultsMeta.total} pilihan untuk Anda`}
+                  ? copy.loadingListings
+                  : `${resultsMeta.total} ${copy.listingChoicesSuffix}`}
               </h3>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Urutkan
+                {copy.sortBy}
               </label>
               <select
                 value={form.sortBy}
@@ -598,8 +980,8 @@ function SearchPageContent() {
                 }}
                 className="h-9 rounded-full border border-slate-200 px-3 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600 focus:border-teal-500 focus:outline-none"
               >
-                <option value="name">Nama</option>
-                <option value="price">Harga</option>
+                <option value="name">{copy.sortName}</option>
+                <option value="price">{copy.sortPrice}</option>
               </select>
               <select
                 value={form.sortOrder}
@@ -614,8 +996,8 @@ function SearchPageContent() {
                 }}
                 className="h-9 rounded-full border border-slate-200 px-3 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600 focus:border-teal-500 focus:outline-none"
               >
-                <option value="asc">Menaik</option>
-                <option value="desc">Menurun</option>
+                <option value="asc">{copy.sortAsc}</option>
+                <option value="desc">{copy.sortDesc}</option>
               </select>
             </div>
           </div>
@@ -634,7 +1016,9 @@ function SearchPageContent() {
                 <div className="space-y-4 px-5 py-4">
                   <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
                     <span>{item.tag}</span>
-                    <span>Rating {item.rating}</span>
+                    <span>
+                      {copy.rating} {item.rating}
+                    </span>
                   </div>
                   <div>
                     <h4 className="text-lg font-semibold text-slate-900">
@@ -643,23 +1027,51 @@ function SearchPageContent() {
                     <p className="text-sm text-slate-500">{item.location}</p>
                   </div>
                   <p className="text-sm text-slate-600">{item.highlight}</p>
+                  {item.breakfastEnabled ? (
+                    <p className="text-xs font-semibold text-teal-700">
+                      {copy.breakfastAvailable} · +{formatCurrency(item.breakfastPricePerPax)}/pax
+                      {copy.perNight}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500">{copy.noBreakfast}</p>
+                  )}
+                  {item.amenityKeys.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {item.amenityKeys.slice(0, 4).map((key) => (
+                        <span
+                          key={`${item.id}-${key}`}
+                          className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+                        >
+                          {getAmenityLabelByLocale(key, locale)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <p className="text-base font-semibold text-slate-900">
-                        {item.price > 0 ? formatIDR(item.price) : "Harga belum tersedia"}
+                        {item.price > 0
+                          ? formatCurrency(item.price)
+                          : copy.priceUnavailable}
                         <span className="text-xs font-normal text-slate-500">
-                          {" "}/ malam
+                          {" "}
+                          {copy.perNight}
                         </span>
                       </p>
                       {item.price > 0 && form.startDate && nights > 0 && (
                         <p className="text-xs text-slate-500">
-                          Total {formatIDR(item.price * nights * Math.max(form.rooms, 1))} ·{" "}
-                          {nights} malam × {Math.max(form.rooms, 1)} kamar
+                          {copy.totalLabel}{" "}
+                          {formatCurrency(item.price * nights * Math.max(form.rooms, 1))} ·{" "}
+                          {nights} {getNightLabel(nights)} × {Math.max(form.rooms, 1)}{" "}
+                          {getRoomLabel(Math.max(form.rooms, 1))}
                         </p>
                       )}
+                      <p className="text-[11px] text-slate-500">
+                        {copy.notIncludeFees}
+                      </p>
                     </div>
                     <span className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900">
-                      Lihat detail
+                      {copy.viewDetails}
                     </span>
                   </div>
                 </div>
@@ -667,7 +1079,7 @@ function SearchPageContent() {
             ))}
             {!resultsLoading && results.length === 0 && (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
-                Belum ada properti yang sesuai dengan pencarianmu.
+                {copy.noResults}
               </div>
             )}
           </div>
@@ -685,7 +1097,7 @@ function SearchPageContent() {
                 disabled={resultsMeta.page <= 1 || resultsLoading}
                 className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-50"
               >
-                Sebelumnya
+                {copy.previous}
               </button>
               {Array.from({ length: resultsMeta.totalPages }, (_, index) => index + 1)
                 .slice(
@@ -715,7 +1127,7 @@ function SearchPageContent() {
                 }
                 className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-50"
               >
-                Selanjutnya
+                {copy.next}
               </button>
             </div>
           )}

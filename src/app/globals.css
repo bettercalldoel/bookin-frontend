@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3f6f3;
-  --foreground: #1b2b32;
+  --background: #f3f5f8;
+  --foreground: #1e293b;
   --surface: #ffffff;
-  --surface-soft: #eef3f0;
-  --muted: #5a6e79;
-  --accent: #0f766e;
-  --accent-strong: #155e75;
-  --ring: #0d9488;
+  --surface-soft: #eef2f7;
+  --muted: #64748b;
+  --accent: #0f5f8a;
+  --accent-strong: #0b4c70;
+  --ring: #0f6a95;
 }
 
 @theme inline {
@@ -21,40 +21,19 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-ui-sans), "Avenir Next", "Segoe UI", system-ui,
+  font-family: var(--font-ui-sans), "Segoe UI", "Helvetica Neue", system-ui,
     sans-serif;
-  letter-spacing: -0.01em;
-  background-image:
-    radial-gradient(
-      circle at 8% -10%,
-      rgba(13, 148, 136, 0.16),
-      transparent 40%
-    ),
-    radial-gradient(
-      circle at 86% -10%,
-      rgba(14, 116, 144, 0.14),
-      transparent 38%
-    ),
-    linear-gradient(165deg, #f8f9f6 0%, #eef3ef 54%, #f4f7f2 100%);
-}
-
-body::before {
-  content: "";
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  opacity: 0.34;
-  background-image: radial-gradient(rgba(27, 43, 50, 0.09) 0.55px, transparent 0.55px);
-  background-size: 10px 10px;
+  letter-spacing: -0.005em;
+  background-image: linear-gradient(180deg, #f8fafc 0%, #f3f5f8 100%);
 }
 
 h1,
 h2,
 h3,
 .font-display {
-  font-family: var(--font-display), "Iowan Old Style", "Times New Roman", serif;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display), "Segoe UI", "Helvetica Neue", system-ui,
+    sans-serif;
+  letter-spacing: -0.015em;
 }
 
 ::selection {
@@ -83,16 +62,11 @@ h3,
 }
 
 .surface-panel {
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.94) 0%,
-    rgba(248, 250, 249, 0.88) 45%,
-    rgba(239, 244, 241, 0.82) 100%
-  );
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 100%);
   box-shadow:
-    0 18px 44px -26px rgba(15, 23, 42, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    0 16px 30px -26px rgba(15, 23, 42, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .tenant-dashboard-shell {
@@ -106,10 +80,8 @@ h3,
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.5;
-  background-image:
-    radial-gradient(circle at 12% 14%, rgba(13, 148, 136, 0.12), transparent 38%),
-    radial-gradient(circle at 90% 6%, rgba(8, 145, 178, 0.12), transparent 35%);
+  opacity: 0.28;
+  background-image: linear-gradient(180deg, rgba(15, 106, 149, 0.08) 0%, transparent 45%);
 }
 
 .animate-rise-in {

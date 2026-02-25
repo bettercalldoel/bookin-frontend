@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { isValidEmail } from "@/lib/validation";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
 
 type ResetPasswordResponse = {
   message: string;
@@ -10,37 +11,84 @@ type ResetPasswordResponse = {
   expiresAt?: string;
 };
 
+type SetString = (value: string) => void;
+type SetBoolean = (value: boolean) => void;
+
+const validateResetEmail = (email: string, invalidMessage: string) => {
+  if (!isValidEmail(email)) return invalidMessage;
+  return "";
+};
+
+const requestResetPassword = (email: string) =>
+  apiFetch<ResetPasswordResponse>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+
+const submitResetPassword = async (
+  email: string,
+  setSuccess: SetString,
+  setError: SetString,
+  fallbackMessage: string,
+) => {
+  try {
+    const result = await requestResetPassword(email);
+    setSuccess(result.message);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : fallbackMessage;
+    setError(message);
+  }
+};
+
+const withLoading = async (setLoading: SetBoolean, task: () => Promise<void>) => {
+  setLoading(true);
+  try {
+    await task();
+  } finally {
+    setLoading(false);
+  }
+};
+
 export default function ForgotPasswordPage() {
+  const locale = useAppLocaleValue();
+  const copy = {
+    invalidEmail: locale === "en" ? "Invalid email format." : "Format email tidak valid.",
+    failed:
+      locale === "en"
+        ? "Failed to request password reset."
+        : "Gagal mengirim atur ulang password.",
+    title: locale === "en" ? "Reset Password" : "Atur Ulang Password",
+    subtitle:
+      locale === "en"
+        ? "Enter your email to receive a password reset link."
+        : "Masukkan email untuk menerima link atur ulang password.",
+    email: "Email",
+    sending: locale === "en" ? "Sending..." : "Mengirim...",
+    sendLink: locale === "en" ? "Send Reset Link" : "Kirim Link Atur Ulang",
+    backLogin: locale === "en" ? "Back to Sign in" : "Kembali ke Masuk",
+  };
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async function (
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
     setError("");
     setSuccess("");
 
     const trimmedEmail = email.trim();
-    if (!isValidEmail(trimmedEmail)) {
-      setError("Format email tidak valid.");
+    const validationError = validateResetEmail(trimmedEmail, copy.invalidEmail);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const result = await apiFetch<ResetPasswordResponse>("/auth/reset-password", {
-        method: "POST",
-        body: JSON.stringify({ email: trimmedEmail }),
-      });
-      setSuccess(result.message);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Gagal mengirim atur ulang password.";
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
+    await withLoading(setIsLoading, async () => {
+      await submitResetPassword(trimmedEmail, setSuccess, setError, copy.failed);
+    });
   };
 
   return (
@@ -55,10 +103,10 @@ export default function ForgotPasswordPage() {
             <div className="inline-block px-2 py-2.5 sm:px-4">
               <form className="flex flex-col gap-4 pb-4" onSubmit={handleSubmit}>
                 <h1 className="mb-2 text-2xl font-bold text-slate-900">
-                  Atur Ulang Password
+                  {copy.title}
                 </h1>
                 <p className="text-sm text-slate-500">
-                  Masukkan email untuk menerima link atur ulang password.
+                  {copy.subtitle}
                 </p>
                 <div>
                   <div className="mb-2">
@@ -66,7 +114,7 @@ export default function ForgotPasswordPage() {
                       className="text-sm font-medium text-slate-700"
                       htmlFor="email"
                     >
-                      Email
+                      {copy.email}
                     </label>
                   </div>
                   <div className="flex w-full rounded-lg pt-1">
@@ -100,14 +148,14 @@ export default function ForgotPasswordPage() {
                     className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                   >
                     <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
-                      {isLoading ? "Mengirim..." : "Kirim Link Atur Ulang"}
+                      {isLoading ? copy.sending : copy.sendLink}
                     </span>
                   </button>
                   <a
                     href="/login"
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                   >
-                    Kembali ke Masuk
+                    {copy.backLogin}
                   </a>
                 </div>
               </form>

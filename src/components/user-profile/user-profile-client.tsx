@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { isValidEmail, isValidUrl } from "@/lib/validation";
 import { getAuthToken } from "@/lib/auth-client";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
 
 type UserProfileMe = {
   name: string;
@@ -57,6 +58,66 @@ async function uploadAvatar(file: File, signature: SignatureResponse) {
 }
 
 export default function UserProfileClient({ me }: { me: UserProfileMe }) {
+  const locale = useAppLocaleValue();
+  const copy = {
+    unauthorized: locale === "en" ? "Unauthorized." : "Unauthorized.",
+    uploadFailed: locale === "en" ? "Avatar upload failed." : "Upload avatar gagal.",
+    invalidAvatarFormat:
+      locale === "en"
+        ? "Photo format must be .jpg, .jpeg, .png, or .gif."
+        : "Format foto harus .jpg, .jpeg, .png, atau .gif.",
+    invalidAvatarSize:
+      locale === "en" ? "Maximum photo size is 1MB." : "Ukuran foto maksimal 1MB.",
+    avatarUploaded:
+      locale === "en" ? "Profile photo uploaded successfully." : "Foto profil berhasil diunggah.",
+    updateFailed:
+      locale === "en" ? "Failed to update profile." : "Gagal memperbarui.",
+    invalidAvatarUrl:
+      locale === "en" ? "Invalid profile photo URL." : "URL foto profil tidak valid.",
+    invalidEmail: locale === "en" ? "Invalid email format." : "Format email tidak valid.",
+    resetFailed:
+      locale === "en"
+        ? "Failed to send password reset."
+        : "Gagal mengirim atur ulang password.",
+    resendFailed: locale === "en" ? "Failed to send." : "Gagal mengirim.",
+    profileHeader: locale === "en" ? "User Profile" : "Profil Pengguna",
+    profileTitle:
+      locale === "en"
+        ? "Manage profile and account security"
+        : "Kelola profil dan keamanan akun",
+    backHome: locale === "en" ? "Back to Home" : "Kembali ke Beranda",
+    emailStatus: locale === "en" ? "Email Status" : "Status Email",
+    verified: locale === "en" ? "Verified" : "Terverifikasi",
+    unverified: locale === "en" ? "Unverified" : "Belum terverifikasi",
+    emailNotVerified:
+      locale === "en"
+        ? "Email is not verified. Please verify again."
+        : "Email belum terverifikasi. Silakan verifikasi ulang.",
+    personalData: locale === "en" ? "Personal Data" : "Data Personal",
+    fullName: locale === "en" ? "Full Name" : "Nama Lengkap",
+    profilePhoto: locale === "en" ? "Profile Photo" : "Foto Profil",
+    avatarHint:
+      locale === "en"
+        ? "Format: jpg, jpeg, png, gif. Max 1MB."
+        : "Format: jpg, jpeg, png, gif. Maksimal 1MB.",
+    avatarUrlPlaceholder:
+      locale === "en" ? "Or paste profile photo URL" : "Atau tempel URL foto profil",
+    saving: locale === "en" ? "Saving..." : "Menyimpan...",
+    saveProfile: locale === "en" ? "Save Profile" : "Simpan Profil",
+    updateEmail: locale === "en" ? "Update Email" : "Perbarui Email",
+    resendVerification:
+      locale === "en" ? "Resend verification" : "Verifikasi ulang",
+    sending: locale === "en" ? "Sending..." : "Mengirim...",
+    updatePassword: locale === "en" ? "Update Password" : "Perbarui Password",
+    googleAccountHint:
+      locale === "en"
+        ? "This account signs in with Google. Password reset is only available for email/password accounts."
+        : "Akun ini masuk melalui Google. Atur ulang password hanya tersedia untuk akun yang dibuat dengan email dan password.",
+    sendResetLink:
+      locale === "en"
+        ? "Send Password Reset Link to Email"
+        : "Kirim Link Atur Ulang ke Email",
+  };
   const [name, setName] = useState(me.name);
   const [email, setEmail] = useState(me.email);
   const [avatarUrl, setAvatarUrl] = useState(me.avatarUrl ?? "");
@@ -81,10 +142,10 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
   const validateAvatar = (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (!ALLOWED_EXT.includes(ext)) {
-      return "Format foto harus .jpg, .jpeg, .png, atau .gif.";
+      return copy.invalidAvatarFormat;
     }
     if (file.size > MAX_AVATAR_SIZE) {
-      return "Ukuran foto maksimal 1MB.";
+      return copy.invalidAvatarSize;
     }
     return null;
   };
@@ -103,9 +164,9 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
       const signature = await fetchProfileSignature();
       const url = await uploadAvatar(file, signature);
       setAvatarUrl(url);
-      setInfo("Foto profil berhasil diunggah.");
+      setInfo(copy.avatarUploaded);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload gagal.";
+      const message = err instanceof Error ? err.message : copy.uploadFailed;
       setError(message);
     } finally {
       setIsUploadingAvatar(false);
@@ -117,7 +178,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
     setInfo("");
     const token = getAuthToken();
     if (!token) {
-      setError("Unauthorized.");
+      setError(copy.unauthorized);
       return;
     }
 
@@ -129,7 +190,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
     const trimmedAvatar = avatarUrl.trim();
     if (trimmedAvatar) {
       if (!isValidUrl(trimmedAvatar)) {
-        setError("URL foto profil tidak valid.");
+        setError(copy.invalidAvatarUrl);
         return;
       }
       payload.avatarUrl = trimmedAvatar;
@@ -144,7 +205,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
       });
       setInfo(result.message);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal memperbarui.";
+      const message = err instanceof Error ? err.message : copy.updateFailed;
       setError(message);
     } finally {
       setIsSavingProfile(false);
@@ -156,7 +217,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
     setInfo("");
     const trimmedEmail = email.trim();
     if (!isValidEmail(trimmedEmail)) {
-      setError("Format email tidak valid.");
+      setError(copy.invalidEmail);
       return;
     }
     setIsSendingReset(true);
@@ -167,8 +228,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
       });
       setInfo(result.message);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Gagal mengirim atur ulang password.";
+      const message = err instanceof Error ? err.message : copy.resetFailed;
       setError(message);
     } finally {
       setIsSendingReset(false);
@@ -180,12 +240,12 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
     setInfo("");
     const token = getAuthToken();
     if (!token) {
-      setError("Unauthorized.");
+      setError(copy.unauthorized);
       return;
     }
     const trimmedEmail = email.trim();
     if (!isValidEmail(trimmedEmail)) {
-      setError("Format email tidak valid.");
+      setError(copy.invalidEmail);
       return;
     }
     setIsSavingEmail(true);
@@ -202,7 +262,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
       setEmail(result.email);
       setEmailVerifiedAt(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal memperbarui.";
+      const message = err instanceof Error ? err.message : copy.updateFailed;
       setError(message);
     } finally {
       setIsSavingEmail(false);
@@ -214,12 +274,12 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
     setInfo("");
     const token = getAuthToken();
     if (!token) {
-      setError("Unauthorized.");
+      setError(copy.unauthorized);
       return;
     }
     const trimmedEmail = email.trim();
     if (!isValidEmail(trimmedEmail)) {
-      setError("Format email tidak valid.");
+      setError(copy.invalidEmail);
       return;
     }
     setIsResending(true);
@@ -234,7 +294,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
       );
       setInfo(result.message);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal mengirim.";
+      const message = err instanceof Error ? err.message : copy.resendFailed;
       setError(message);
     } finally {
       setIsResending(false);
@@ -252,10 +312,10 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-600">
-                Profil Pengguna
+                {copy.profileHeader}
               </p>
               <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-                Kelola profil dan keamanan akun
+                {copy.profileTitle}
               </h1>
               <p className="mt-2 text-sm text-slate-500">{email}</p>
             </div>
@@ -264,7 +324,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                 href="/"
                 className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
               >
-                Kembali ke Beranda
+                {copy.backHome}
               </a>
               {avatarUrl ? (
                 <img
@@ -279,10 +339,10 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
               )}
               <div>
                 <p className="text-xs font-semibold text-slate-500">
-                  Status Email
+                  {copy.emailStatus}
                 </p>
                 <p className="text-sm font-semibold text-slate-900">
-                  {isVerified ? "Terverifikasi" : "Belum terverifikasi"}
+                  {isVerified ? copy.verified : copy.unverified}
                 </p>
               </div>
             </div>
@@ -290,19 +350,19 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
 
           {!isVerified ? (
             <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              Email belum terverifikasi. Silakan verifikasi ulang.
+              {copy.emailNotVerified}
             </div>
           ) : null}
 
           <div className="mt-8 grid gap-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-5">
               <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
-                Data Personal
+                {copy.personalData}
               </h2>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">
-                    Nama Lengkap
+                    {copy.fullName}
                   </label>
                   <input
                     type="text"
@@ -313,7 +373,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">
-                    Foto Profil
+                    {copy.profilePhoto}
                   </label>
                   <input
                     type="file"
@@ -324,14 +384,14 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                     className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800"
                   />
                   <p className="text-xs text-slate-400">
-                    Format: jpg, jpeg, png, gif. Maksimal 1MB.
+                    {copy.avatarHint}
                   </p>
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <input
                   type="url"
-                  placeholder="Atau tempel URL foto profil"
+                  placeholder={copy.avatarUrlPlaceholder}
                   value={avatarUrl}
                   onChange={(event) => setAvatarUrl(event.target.value)}
                   className="h-11 flex-1 rounded-2xl border border-slate-200 bg-white px-4 text-sm"
@@ -342,14 +402,14 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                   disabled={isSavingProfile || isUploadingAvatar}
                   className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                 >
-                  {isSavingProfile ? "Menyimpan..." : "Simpan Profil"}
+                  {isSavingProfile ? copy.saving : copy.saveProfile}
                 </button>
               </div>
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-5">
               <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
-                Perbarui Email
+                {copy.updateEmail}
               </h2>
               <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
                 <input
@@ -364,7 +424,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                   disabled={isSavingEmail}
                   className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                 >
-                  {isSavingEmail ? "Menyimpan..." : "Perbarui Email"}
+                  {isSavingEmail ? copy.saving : copy.updateEmail}
                 </button>
                 {!isVerified ? (
                   <button
@@ -373,7 +433,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                     disabled={isResending}
                     className="rounded-full border border-amber-200 bg-amber-50 px-5 py-2 text-xs font-semibold text-amber-700"
                   >
-                    {isResending ? "Mengirim..." : "Verifikasi ulang"}
+                    {isResending ? copy.sending : copy.resendVerification}
                   </button>
                 ) : null}
               </div>
@@ -381,12 +441,11 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
 
             <section className="rounded-3xl border border-slate-200 bg-white p-5">
               <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
-                Perbarui Password
+                {copy.updatePassword}
               </h2>
               {!hasPassword ? (
                 <p className="mt-3 text-xs text-slate-500">
-                  Akun ini masuk melalui Google. Atur ulang password hanya tersedia untuk
-                  akun yang dibuat dengan email dan password.
+                  {copy.googleAccountHint}
                 </p>
               ) : null}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -396,7 +455,7 @@ export default function UserProfileClient({ me }: { me: UserProfileMe }) {
                   disabled={isSendingReset || !hasPassword}
                   className="rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                 >
-                  {isSendingReset ? "Mengirim..." : "Kirim Link Atur Ulang ke Email"}
+                  {isSendingReset ? copy.sending : copy.sendResetLink}
                 </button>
               </div>
             </section>

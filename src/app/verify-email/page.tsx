@@ -3,18 +3,49 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { useAppLocaleValue } from "@/hooks/use-app-locale";
+import { getVerifyEmailCopy, type VerifyEmailCopy } from "./verify-copy";
+import VerifyEmailFormView from "./verify-email-form.view";
 
-export default function VerifyEmailPage() {
-  return (
-    <Suspense fallback={null}>
-      <VerifyEmailForm />
-    </Suspense>
-  );
-}
+type VerifyEmailFormState = {
+  copy: VerifyEmailCopy;
+  name: string;
+  password: string;
+  confirmPassword: string;
+  isLoading: boolean;
+  error: string;
+  success: string;
+  onNameChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onConfirmPasswordChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+};
 
-function VerifyEmailForm() {
+const validateVerifyEmailInput = (
+  token: string,
+  name: string,
+  password: string,
+  confirmPassword: string,
+  copy: VerifyEmailCopy,
+) => {
+  if (name.trim().length < 2) return copy.nameMin;
+  if (!token.trim()) return copy.missingToken;
+  if (password.length < 8) return copy.passwordMin;
+  if (password !== confirmPassword) return copy.confirmMismatch;
+  return "";
+};
+
+const submitVerifyEmail = (token: string, name: string, password: string) =>
+  apiFetch<{ message: string }>("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token, name, password }),
+  });
+
+const useVerifyEmailForm = function (): VerifyEmailFormState {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const locale = useAppLocaleValue();
+  const copy = getVerifyEmailCopy(locale);
   const [token, setToken] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -25,165 +56,59 @@ function VerifyEmailForm() {
 
   useEffect(() => {
     const tokenFromUrl = searchParams.get("token");
-    if (tokenFromUrl) setToken(tokenFromUrl);
+    if (!tokenFromUrl) return;
+    setToken(tokenFromUrl);
   }, [searchParams]);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async function (event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setSuccess("");
-
-    const trimmedName = name.trim();
-    if (trimmedName.length < 2) {
-      setError("Nama minimal 2 karakter.");
-      return;
-    }
-
-    if (!token.trim()) {
-      setError("Token verifikasi tidak ditemukan. Silakan buka link dari email.");
-      return;
-    }
-
-    if (password.length < 8) {
-      setError("Password minimal 8 karakter.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Konfirmasi password tidak sama.");
-      return;
-    }
-
+    const validationError = validateVerifyEmailInput(
+      token,
+      name,
+      password,
+      confirmPassword,
+      copy,
+    );
+    if (validationError) return setError(validationError);
     setIsLoading(true);
-
     try {
-      const result = await apiFetch<{ message: string }>("/auth/verify-email", {
-        method: "POST",
-        body: JSON.stringify({
-          token: token.trim(),
-          name: trimmedName,
-          password,
-        }),
-      });
+      const result = await submitVerifyEmail(token.trim(), name.trim(), password);
       setSuccess(result.message);
       setTimeout(() => router.push("/login"), 1200);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Verifikasi gagal.";
+      const message = err instanceof Error ? err.message : copy.failed;
       setError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <div className="relative min-h-screen bg-slate-50 py-20 text-slate-900">
-      <div className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-teal-200/70 blur-3xl" />
-      <div className="pointer-events-none absolute left-0 top-1/2 h-80 w-80 -translate-y-1/2 rounded-full bg-sky-200/70 blur-3xl" />
-      <div className="pointer-events-none absolute inset-0 bg-grid-slate" />
+  return {
+    copy,
+    name,
+    password,
+    confirmPassword,
+    isLoading,
+    error,
+    success,
+    onNameChange: setName,
+    onPasswordChange: setPassword,
+    onConfirmPasswordChange: setConfirmPassword,
+    onSubmit: handleSubmit,
+  };
+};
 
-      <main className="relative z-10 flex h-full items-center justify-center px-6">
-        <div className="flex h-full w-full max-w-md flex-col items-center justify-center rounded-[28px] border border-slate-200/80 bg-white/90 shadow-2xl shadow-slate-200/70 backdrop-blur">
-          <div className="flex h-full w-full flex-col justify-center gap-4 p-6 sm:p-8">
-            <div className="inline-block px-2 py-2.5 sm:px-4">
-              <form className="flex flex-col gap-4 pb-4" onSubmit={handleSubmit}>
-                <h1 className="mb-2 text-2xl font-bold text-slate-900">
-                  Lengkapi Akun
-                </h1>
-                <p className="text-sm text-slate-500">
-                  Isi nama dan buat password untuk menyelesaikan verifikasi.
-                </p>
-                <div>
-                  <div className="mb-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Nama
-                    </label>
-                  </div>
-                  <div className="flex w-full rounded-lg pt-1">
-                    <div className="relative w-full">
-                      <input
-                        type="text"
-                        placeholder="Masukkan nama lengkap"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Password
-                    </label>
-                  </div>
-                  <div className="flex w-full rounded-lg pt-1">
-                    <div className="relative w-full">
-                      <input
-                        type="password"
-                        placeholder="Masukkan password"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Konfirmasi Password
-                    </label>
-                  </div>
-                  <div className="flex w-full rounded-lg pt-1">
-                    <div className="relative w-full">
-                      <input
-                        type="password"
-                        placeholder="Ulangi password"
-                        value={confirmPassword}
-                        onChange={(event) => setConfirmPassword(event.target.value)}
-                        className="block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/15"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-                {error ? (
-                  <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
-                    {error}
-                  </p>
-                ) : null}
-                {success ? (
-                  <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
-                    {success}
-                  </p>
-                ) : null}
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="rounded-full border border-transparent bg-slate-900 p-0.5 text-white transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-                >
-                  <span className="flex items-center justify-center gap-1 px-2.5 py-1 text-base font-medium">
-                    {isLoading ? "Memproses..." : "Simpan"}
-                  </span>
-                </button>
-              </form>
-              <div className="space-y-3 text-center text-sm text-slate-600">
-                <div>
-                  Sudah punya akun?{" "}
-                  <a
-                    href="/login"
-                    className="text-sky-600 underline hover:text-sky-700"
-                  >
-                    Masuk
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+function VerifyEmailForm() {
+  const form = useVerifyEmailForm();
+  return <VerifyEmailFormView {...form} />;
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyEmailForm />
+    </Suspense>
   );
 }

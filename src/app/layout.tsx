@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { Fraunces, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { JetBrains_Mono, Manrope, Sora } from "next/font/google";
 import "./globals.css";
 
-const jakartaSans = Plus_Jakarta_Sans({
+const manrope = Manrope({
   variable: "--font-ui-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
 });
 
-const fraunces = Fraunces({
+const sora = Sora({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["600", "700", "800"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -34,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body
-        className={`${jakartaSans.variable} ${fraunces.variable} ${jetbrainsMono.variable} antialiased`}
+        className={`${manrope.variable} ${sora.variable} ${jetbrainsMono.variable} antialiased`}
       >
         {children}
       </body>

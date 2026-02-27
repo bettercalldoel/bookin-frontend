@@ -17,31 +17,56 @@ const isNoiseAddressPart = (value: string) => {
   return false;
 };
 
-const toCompareKey = (value: string) => {
-  const normalized = value
+const normalizeLocationKey = (value: string) =>
+  value
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/^(kota|kabupaten|provinsi)\s+/, "");
 
-  if (!normalized) return "";
-  if (
-    normalized === "daerah khusus ibukota jakarta" ||
-    normalized === "dki jakarta"
-  ) {
+const mapSpecialLocationKey = (value: string) => {
+  if (value === "daerah khusus ibukota jakarta" || value === "dki jakarta") {
     return "dki jakarta";
   }
-
-  return normalized;
+  return value;
 };
 
-const splitAddressToCompactParts = (address: string, limit: number) => {
-  const parts = address
+const toCompareKey = (value: string) => {
+  const normalized = normalizeLocationKey(value);
+  if (!normalized) return "";
+  return mapSpecialLocationKey(normalized);
+};
+
+const buildAddressParts = (address: string) =>
+  address
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean);
 
+const pushUniquePart = (
+  value: string | null | undefined,
+  selected: string[],
+  seen: Set<string>,
+) => {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return;
+  const key = toCompareKey(trimmed);
+  if (!key || seen.has(key)) return;
+  seen.add(key);
+  selected.push(trimmed);
+};
+
+const appendAddressParts = (
+  value: string | null | undefined,
+  selected: string[],
+  seen: Set<string>,
+) => {
+  buildAddressParts(value ?? "").forEach((part) => pushUniquePart(part, selected, seen));
+};
+
+const splitAddressToCompactParts = (address: string, limit: number) => {
+  const parts = buildAddressParts(address);
   const selected: string[] = [];
   const seen = new Set<string>();
 
@@ -53,8 +78,20 @@ const splitAddressToCompactParts = (address: string, limit: number) => {
     if (selected.length >= limit) break;
   }
 
-  if (selected.length > 0) return selected.join(", ");
-  return parts.slice(0, limit).join(", ");
+  return selected.length > 0 ? selected.join(", ") : parts.slice(0, limit).join(", ");
+};
+
+const collectUniqueLocationParts = (
+  values: Array<string | null | undefined>,
+  includeAddressParts = false,
+) => {
+  const selected: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (includeAddressParts) appendAddressParts(value, selected, seen);
+    else pushUniquePart(value, selected, seen);
+  }
+  return selected;
 };
 
 export const formatCompactLocation = ({
@@ -64,32 +101,14 @@ export const formatCompactLocation = ({
   fallback = DEFAULT_FALLBACK,
   addressPartsLimit = DEFAULT_ADDRESS_PARTS_LIMIT,
 }: CompactLocationInput) => {
-  const selected: string[] = [];
-  const seen = new Set<string>();
-
-  const appendUnique = (value: string | null | undefined) => {
-    const trimmed = value?.trim() ?? "";
-    if (!trimmed) return;
-    const key = toCompareKey(trimmed);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    selected.push(trimmed);
-  };
-
-  appendUnique(city);
-  appendUnique(province);
-
+  const selected = collectUniqueLocationParts([city, province]);
   if (selected.length > 0) return selected.join(", ");
 
   const trimmedAddress = address?.trim() ?? "";
-  if (trimmedAddress) {
-    return splitAddressToCompactParts(
-      trimmedAddress,
-      Math.max(1, Math.floor(addressPartsLimit)),
-    );
-  }
+  if (!trimmedAddress) return fallback;
 
-  return fallback;
+  const limit = Math.max(1, Math.floor(addressPartsLimit));
+  return splitAddressToCompactParts(trimmedAddress, limit);
 };
 
 type DetailedLocationInput = {
@@ -105,29 +124,7 @@ export const formatDetailedLocation = ({
   province,
   fallback = DEFAULT_FALLBACK,
 }: DetailedLocationInput) => {
-  const selected: string[] = [];
-  const seen = new Set<string>();
-
-  const appendUnique = (value: string | null | undefined) => {
-    const trimmed = value?.trim() ?? "";
-    if (!trimmed) return;
-    const key = toCompareKey(trimmed);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    selected.push(trimmed);
-  };
-
-  const addressParts = (address ?? "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  for (const part of addressParts) {
-    appendUnique(part);
-  }
-  appendUnique(city);
-  appendUnique(province);
-
+  const selected = collectUniqueLocationParts([address, city, province], true);
   if (selected.length > 0) return selected.join(", ");
   return fallback;
 };

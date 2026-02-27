@@ -43,7 +43,7 @@ export default function SearchResultMiniMap({
     if (!hasValidCoordinates(latitude, longitude)) return;
     let active = true;
 
-    const initializeMap = async () => {
+    const initializeMap = async function initializeMap() {
       const Leaflet = await import("leaflet");
       if (!active || !mapContainerRef.current) return;
 

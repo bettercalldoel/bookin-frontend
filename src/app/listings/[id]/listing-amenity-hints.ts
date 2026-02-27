@@ -1,0 +1,33 @@
+export const AMENITY_HINT_BY_KEY_ID: Partial<Record<string, string>> = {
+  wifi: "Internet tersedia di area properti.",
+  air_conditioning: "Kamar lebih nyaman untuk istirahat.",
+  private_bathroom: "Privasi lebih baik selama menginap.",
+  hot_water: "Air hangat tersedia untuk mandi.",
+  television: "Hiburan di kamar setiap saat.",
+  workspace: "Cocok untuk kerja singkat dari properti.",
+  breakfast: "Pilihan sarapan tersedia sesuai kebijakan properti.",
+  kitchen: "Bisa menyiapkan makanan ringan.",
+  parking: "Area parkir tersedia untuk tamu.",
+  elevator: "Akses lantai lebih mudah.",
+  swimming_pool: "Fasilitas kolam untuk aktivitas santai.",
+  gym: "Area olahraga tersedia untuk tamu.",
+  laundry_service: "Layanan laundry sesuai ketentuan properti.",
+  daily_housekeeping: "Kamar dibersihkan secara berkala.",
+};
+
+export const AMENITY_HINT_BY_KEY_EN: Partial<Record<string, string>> = {
+  wifi: "Internet is available throughout the property.",
+  air_conditioning: "More comfortable room temperature for rest.",
+  private_bathroom: "Better privacy during your stay.",
+  hot_water: "Hot water is available.",
+  television: "In-room entertainment at any time.",
+  workspace: "Suitable for short work sessions.",
+  breakfast: "Breakfast option follows property policy.",
+  kitchen: "Prepare light meals easily.",
+  parking: "Parking area is available for guests.",
+  elevator: "Easier access to upper floors.",
+  swimming_pool: "Pool facility for relaxing activities.",
+  gym: "Workout area for guests.",
+  laundry_service: "Laundry service based on property terms.",
+  daily_housekeeping: "Room cleaning is done regularly.",
+};

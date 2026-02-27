@@ -41,4 +41,14 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+### Required Vercel Environment Variables
+
+Set these in your Vercel project before deploying:
+
+- `NEXT_PUBLIC_API_BASE_URL=https://<your-koyeb-backend-domain>`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google-client-id>` (optional)
+- `NEXT_PUBLIC_CAROUSEL_IMAGES=<comma-separated-image-urls>` (optional)
+
+After updating env vars, redeploy so they are applied to the build output.
 # bookin-frontend

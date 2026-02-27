@@ -46,7 +46,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 Set these in your Vercel project before deploying:
 
-- `NEXT_PUBLIC_API_BASE_URL=https://<your-koyeb-backend-domain>`
+- `NEXT_PUBLIC_API_BASE_URL=https://<your-railway-backend-domain>`
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google-client-id>` (optional)
 - `NEXT_PUBLIC_CAROUSEL_IMAGES=<comma-separated-image-urls>` (optional)
 
